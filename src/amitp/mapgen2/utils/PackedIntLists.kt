@@ -19,7 +19,7 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
     var values: IntArray
 
     init {
-        val initialCapacityPerValue = max(initialCapacityPerValue, 1)
+        val initialCapacityPerValue = max(initialCapacityPerValue + 1, 1)
         val totalCapacity = size * initialCapacityPerValue + (initialCapacityPerValue == 1).toInt()
         values = IntArray(totalCapacity)
 
