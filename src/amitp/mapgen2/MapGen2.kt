@@ -2,15 +2,14 @@ package amitp.mapgen2
 
 import amitp.mapgen2.Biome.Companion.getBiome
 import amitp.mapgen2.geometry.CenterList
-import amitp.mapgen2.geometry.Corner
 import amitp.mapgen2.geometry.CornerList
-import amitp.mapgen2.geometry.CornerList.Companion.toCornerList
-import amitp.mapgen2.geometry.CornerList.Companion.toCorners
 import amitp.mapgen2.geometry.EdgeList
 import amitp.mapgen2.graph.Graph
 import amitp.mapgen2.graph.GraphBuilder
 import amitp.mapgen2.shape.IslandShape
 import me.anno.utils.Clock
+import me.anno.utils.algorithms.Sortable
+import me.anno.utils.structures.arrays.IntArrayList
 import org.apache.logging.log4j.LogManager
 import org.joml.Vector2f
 import kotlin.math.max
@@ -29,15 +28,11 @@ object MapGen2 {
     ): Graph = graphBuilder.buildGraph(size, numPoints, mapRandom.nextLong())
 
     fun assignElevations(islandShape: IslandShape, graph: Graph, size: Float) {
-        assignCornerElevations(islandShape, graph.cornerList, size)
-        assignOceanCoastAndLand(graph.centers, graph.cornerList)
-
-        graph.cornerList.toCorners(graph.corners)
-        redistributeElevations(landCorners(graph.corners))
-        graph.corners.toCornerList(graph.cornerList)
-
-        clearOceanElevation(graph.cornerList)
-        assignPolygonElevations(graph.centers, graph.cornerList)
+        assignCornerElevations(islandShape, graph.corners, size)
+        assignOceanCoastAndLand(graph.centers, graph.corners)
+        redistributeElevations(graph.corners, landCorners(graph.corners))
+        clearOceanElevation(graph.corners)
+        assignPolygonElevations(graph.centers, graph.corners)
     }
 
     fun clearOceanElevation(corners: CornerList) {
@@ -49,17 +44,12 @@ object MapGen2 {
     }
 
     fun assignMoisture(graph: Graph, mapRandom: Random) {
-        calculateDownslopes(graph.cornerList)
-        calculateWatersheds(graph.cornerList)
-        createRivers(graph.cornerList, graph.edges, graph.centers.size, mapRandom)
-        assignCornerMoisture(graph.cornerList)
-        graph.cornerList.toCorners(graph.corners)
-
-        redistributeMoisture(landCorners(graph.corners))
-
-        graph.corners.toCornerList(graph.cornerList)
-        assignPolygonMoisture(graph.centers, graph.cornerList)
-        graph.cornerList.toCorners(graph.corners)
+        calculateDownslopes(graph.corners)
+        calculateWatersheds(graph.corners)
+        createRivers(graph.corners, graph.edges, graph.centers.size, mapRandom)
+        assignCornerMoisture(graph.corners)
+        redistributeMoisture(graph.corners, landCorners(graph.corners))
+        assignPolygonMoisture(graph.centers, graph.corners)
     }
 
     fun generate(
@@ -87,8 +77,14 @@ object MapGen2 {
         return graph
     }
 
-    fun landCorners(corners: List<Corner>): List<Corner> {
-        return corners.filter { q -> !q.ocean && !q.coast }
+    fun landCorners(corners: CornerList): IntArrayList {
+        val result = IntArrayList(corners.size)
+        for (i in 0 until corners.size) {
+            if (!corners.isOcean(i) && !corners.isCoast(i)) {
+                result.add(i)
+            }
+        }
+        return result
     }
 
     fun assignCornerElevations(islandShape: IslandShape, corners: CornerList, size: Float) {
@@ -346,30 +342,57 @@ object MapGen2 {
         return islandShape.isOnLand(nx, ny)
     }
 
-    fun redistributeElevations(locations: List<Corner>) {
+    fun redistributeElevations(corners: CornerList, locations: IntArrayList) {
         val SCALE_FACTOR = 1.1f
 
         // Sort corners by elevation ascending
-        val sorted = locations.sortedBy { it.elevation }
+        val sorted = locations.sortedBy { corners.getElevation(it) }
 
         val n = sorted.size
-        for ((i, corner) in sorted.withIndex()) {
+        for (i in 0 until sorted.size) {
             val y = i.toFloat() / (n - 1).coerceAtLeast(1)
             // Solve x^2 - 2x + y = 0 -> x = 1 - sqrt(1 - y)
             var x = sqrt(SCALE_FACTOR) - sqrt(SCALE_FACTOR * (1f - y))
             if (x > 1f) x = 1f
-            corner.elevation = x
+            corners.setElevation(sorted[i], x)
         }
     }
 
-    fun redistributeMoisture(locations: List<Corner>) {
+    fun redistributeMoisture(corners: CornerList, locations: IntArrayList) {
         // Sort corners by moisture ascending
-        val sorted = locations.sortedBy { it.moisture }
+        val sorted = locations.sortedBy { corners.getMoisture(it) }
 
         val n = sorted.size
-        for ((i, corner) in sorted.withIndex()) {
-            corner.moisture = i.toFloat() / (n - 1).coerceAtLeast(1)
+        for (i in 0 until sorted.size) {
+            corners.setMoisture(sorted[i], i.toFloat() / (n - 1).coerceAtLeast(1))
         }
+    }
+
+    fun IntArrayList.sortedBy(map: (Int) -> Float): IntArrayList {
+        val self = this
+        object : Sortable {
+            override fun move(dstI: Int, srcI: Int) {
+                self[dstI] = self[srcI]
+            }
+
+            var tmp = 0
+            override fun store(srcI: Int) {
+                tmp = self[srcI]
+            }
+
+            override fun restore(dstI: Int) {
+                self[dstI] = tmp
+            }
+
+            override fun compare(indexI: Int, indexJ: Int): Int {
+                return map(self[indexI]).compareTo(map(self[indexJ]))
+            }
+
+            override fun swap(indexI: Int, indexJ: Int) {
+                self.swap(indexI, indexJ)
+            }
+        }.sortWith2(0, size)
+        return this
     }
 
 }

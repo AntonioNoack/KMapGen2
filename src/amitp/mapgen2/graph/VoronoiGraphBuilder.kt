@@ -1,7 +1,6 @@
 package amitp.mapgen2.graph
 
 import amitp.mapgen2.geometry.CenterList
-import amitp.mapgen2.geometry.Corner
 import amitp.mapgen2.geometry.CornerList
 import amitp.mapgen2.geometry.EdgeList
 import amitp.mapgen2.pointselector.PointSelector
@@ -9,7 +8,6 @@ import amitp.mapgen2.utils.PackedIntLists
 import me.anno.maths.Packing.pack64
 import me.anno.maths.Packing.unpackHighFrom64
 import me.anno.maths.Packing.unpackLowFrom64
-import org.joml.Vector2f
 import speiger.primitivecollections.LongToIntHashMap
 
 class VoronoiGraphBuilder(
@@ -24,7 +22,7 @@ class VoronoiGraphBuilder(
         val t2 = System.nanoTime()
         val graph = buildGraph(points, voronoi, size)
         val t3 = System.nanoTime()
-        improveCorners(graph.centers, graph.cornerList)
+        improveCorners(graph.centers, graph.corners)
         val t4 = System.nanoTime()
         println("[GraphBuilder] ${numCells}x ${(t1 - t0) / 1e6f} ms + ${(t2 - t1) / 1e6f} ms + ${(t3 - t2) / 1e6f} ms + ${(t4 - t3) / 1e6f} ms")
         return graph
@@ -159,8 +157,7 @@ class VoronoiGraphBuilder(
             }
         }
 
-        val corners = List(cornerList.size) { Corner(it, Vector2f()) }
-        return Graph(centers, corners, edges, cornerList)
+        return Graph(centers, cornerList, edges)
     }
 
 }
