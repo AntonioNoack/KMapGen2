@@ -21,7 +21,10 @@ class Corner(
     var watershed: Corner? = null
     var watershedSize: Int = 0
 
-    val touches = ArrayList<Center>()
+    /**
+     * center indices
+     * */
+    val touches = ArrayList<Int>()
     val adjacent = ArrayList<Corner>()
     val protrudes = IntArrayList() // edge indices
 }

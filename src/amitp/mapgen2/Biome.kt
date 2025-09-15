@@ -1,6 +1,6 @@
 package amitp.mapgen2
 
-import amitp.mapgen2.geometry.Center
+import amitp.mapgen2.geometry.CenterList
 
 enum class Biome {
 
@@ -33,36 +33,38 @@ enum class Biome {
     ;
 
     companion object {
-        fun getBiome(p: Center): Biome {
+        fun getBiome(p: CenterList, i: Int): Biome {
+            val elevation = p.getElevation(i)
+            val moisture = p.getMoisture(i)
             return when {
-                p.ocean -> OCEAN
-                p.water -> when {
-                    p.elevation < 0.1 -> MARSH
-                    p.elevation > 0.8 -> ICE
+                p.isOcean(i) -> OCEAN
+                p.isWater(i) -> when {
+                    elevation < 0.1 -> MARSH
+                    elevation > 0.8 -> ICE
                     else -> LAKE
                 }
-                p.coast -> BEACH
-                p.elevation > 0.8 -> when {
-                    p.moisture > 0.50 -> SNOW
-                    p.moisture > 0.33 -> TUNDRA
-                    p.moisture > 0.16 -> BARE
+                p.isCoast(i) -> BEACH
+                elevation > 0.8 -> when {
+                    moisture > 0.50 -> SNOW
+                    moisture > 0.33 -> TUNDRA
+                    moisture > 0.16 -> BARE
                     else -> SCORCHED
                 }
-                p.elevation > 0.6 -> when {
-                    p.moisture > 0.66 -> TAIGA
-                    p.moisture > 0.33 -> SHRUBLAND
+                elevation > 0.6 -> when {
+                    moisture > 0.66 -> TAIGA
+                    moisture > 0.33 -> SHRUBLAND
                     else -> TEMPERATE_DESERT
                 }
-                p.elevation > 0.3 -> when {
-                    p.moisture > 0.83 -> TEMPERATE_RAIN_FOREST
-                    p.moisture > 0.50 -> TEMPERATE_DECIDUOUS_FOREST
-                    p.moisture > 0.16 -> GRASSLAND
+                elevation > 0.3 -> when {
+                    moisture > 0.83 -> TEMPERATE_RAIN_FOREST
+                    moisture > 0.50 -> TEMPERATE_DECIDUOUS_FOREST
+                    moisture > 0.16 -> GRASSLAND
                     else -> TEMPERATE_DESERT
                 }
                 else -> when {
-                    p.moisture > 0.66 -> TROPICAL_RAIN_FOREST
-                    p.moisture > 0.33 -> TROPICAL_SEASONAL_FOREST
-                    p.moisture > 0.16 -> GRASSLAND
+                    moisture > 0.66 -> TROPICAL_RAIN_FOREST
+                    moisture > 0.33 -> TROPICAL_SEASONAL_FOREST
+                    moisture > 0.16 -> GRASSLAND
                     else -> SUBTROPICAL_DESERT
                 }
             }

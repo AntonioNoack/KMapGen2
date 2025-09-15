@@ -1,7 +1,7 @@
 package amitp.mapgen2
 
 import amitp.mapgen2.Biome.Companion.getBiome
-import amitp.mapgen2.geometry.Center
+import amitp.mapgen2.geometry.CenterList
 import amitp.mapgen2.geometry.Corner
 import amitp.mapgen2.geometry.EdgeList
 import amitp.mapgen2.graph.Graph
@@ -32,7 +32,7 @@ object MapGen2 {
         for (q in graph.corners) {
             if (q.ocean || q.coast) q.elevation = 0f
         }
-        assignPolygonElevations(graph.centers)
+        assignPolygonElevations(graph.centers, graph.corners)
     }
 
     fun assignMoisture(graph: Graph, mapRandom: Random) {
@@ -41,7 +41,7 @@ object MapGen2 {
         createRivers(graph.corners, graph.edges, graph.centers.size, mapRandom)
         assignCornerMoisture(graph.corners)
         redistributeMoisture(landCorners(graph.corners))
-        assignPolygonMoisture(graph.centers)
+        assignPolygonMoisture(graph.centers, graph.corners)
     }
 
     fun generate(
@@ -109,45 +109,50 @@ object MapGen2 {
         }
     }
 
-    fun assignOceanCoastAndLand(centers: List<Center>, corners: List<Corner>) {
-        val queue: ArrayDeque<Center> = ArrayDeque()
+    fun assignOceanCoastAndLand(centers: CenterList, corners: List<Corner>) {
+        // todo probably could use a more efficient data structure without encapsulation
+        val queue = ArrayDeque<Int>()
 
         // Step 1: Mark border polygons as ocean
-        for (p in centers) {
+        for (ci in 0 until centers.size) {
             var numWater = 0
-            for (q in p.corners) {
+            centers.corners.forEach(ci) { qi ->
+                val q = corners[qi]
                 if (q.border) {
-                    p.border = true
-                    p.ocean = true
+                    centers.setOcean(ci, true)
+                    centers.setBorder(ci, true)
                     q.water = true
-                    queue.addLast(p)
+                    queue.addLast(ci)
                 }
                 if (q.water) numWater++
             }
             // Mark lakes
-            p.water = p.ocean || numWater >= p.corners.size * LAKE_THRESHOLD
+            centers.setWater(
+                ci, centers.isOcean(ci) ||
+                        numWater >= centers.corners.getSize(ci) * LAKE_THRESHOLD
+            )
         }
 
         // Step 2: Flood-fill ocean from borders
         while (queue.isNotEmpty()) {
-            val p = queue.removeFirst()
-            for (r in p.neighbors) {
-                if (r.water && !r.ocean) {
-                    r.ocean = true
-                    queue.addLast(r)
+            val ci = queue.removeFirst()
+            centers.neighbors.forEach(ci) { ni ->
+                if (centers.isWater(ni) && !centers.isOcean(ni)) {
+                    centers.setOcean(ni, true)
+                    queue.addLast(ni)
                 }
             }
         }
 
         // Step 3: Mark coasts for polygons
-        for (p in centers) {
+        for (ci in 0 until centers.size) {
             var numOcean = 0
             var numLand = 0
-            for (r in p.neighbors) {
-                if (r.ocean) numOcean++
-                if (!r.water) numLand++
+            centers.neighbors.forEach(ci) { r ->
+                if (centers.isOcean(r)) numOcean++
+                if (!centers.isWater(r)) numLand++
             }
-            p.coast = numOcean > 0 && numLand > 0
+            centers.setCoast(ci, numOcean > 0 && numLand > 0)
         }
 
         // Step 4: Update corners
@@ -155,8 +160,8 @@ object MapGen2 {
             var numOcean = 0
             var numLand = 0
             for (p in q.touches) {
-                if (p.ocean) numOcean++
-                if (!p.water) numLand++
+                if (centers.isOcean(p)) numOcean++
+                if (!centers.isWater(p)) numLand++
             }
             q.ocean = (numOcean == q.touches.size)
             q.coast = (numOcean > 0) && (numLand > 0)
@@ -164,13 +169,13 @@ object MapGen2 {
         }
     }
 
-    fun assignPolygonElevations(centers: List<Center>) {
-        for (p in centers) {
+    fun assignPolygonElevations(centers: CenterList, corners: List<Corner>) {
+        for (p in 0 until centers.size) {
             var sumElevation = 0f
-            for (q in p.corners) {
-                sumElevation += q.elevation
+            val size = centers.corners.forEach(p) { q ->
+                sumElevation += corners[q].elevation
             }
-            p.elevation = sumElevation / p.corners.size
+            centers.setElevation(p, sumElevation / size)
         }
     }
 
@@ -273,20 +278,21 @@ object MapGen2 {
         }
     }
 
-    fun assignPolygonMoisture(centers: List<Center>) {
-        for (p in centers) {
+    fun assignPolygonMoisture(centers: CenterList, corners: List<Corner>) {
+        for (ci in 0 until centers.size) {
             var sumMoisture = 0f
-            for (q in p.corners) {
+            val size = centers.corners.forEach(ci) { qi ->
+                val q = corners[qi]
                 if (q.moisture > 1.0) q.moisture = 1f
                 sumMoisture += q.moisture
             }
-            p.moisture = sumMoisture / p.corners.size
+            centers.setMoisture(ci, sumMoisture / size)
         }
     }
 
-    fun assignBiomes(centers: List<Center>) {
-        for (p in centers) {
-            p.biome = getBiome(p)
+    fun assignBiomes(centers: CenterList) {
+        for (p in 0 until centers.size) {
+            centers.setBiome(p, getBiome(centers, p))
         }
     }
 

@@ -1,7 +1,8 @@
 package amitp.mapgen2.utils
 
 import me.anno.utils.InternalAPI
-import me.anno.utils.assertions.assertTrue
+import me.anno.utils.types.Booleans.toInt
+import kotlin.math.max
 
 /**
  * Represents an Array<List<Int>>, with -1 being an invalid value.
@@ -9,7 +10,7 @@ import me.anno.utils.assertions.assertTrue
  *
  * The order of the inserted items may change.
  * */
-class PackedIntLists(val size: Int, avgRowSize: Int) {
+class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
 
     @InternalAPI
     val offsets: IntArray = IntArray(size)
@@ -18,10 +19,8 @@ class PackedIntLists(val size: Int, avgRowSize: Int) {
     var values: IntArray
 
     init {
-        assertTrue(avgRowSize > 0)
-
-        val blockSize = avgRowSize * 2
-        val totalCapacity = size * blockSize
+        val initialCapacityPerValue = max(initialCapacityPerValue, 1)
+        val totalCapacity = size * initialCapacityPerValue + (initialCapacityPerValue == 1).toInt()
         values = IntArray(totalCapacity)
 
         // mark values as invalid
@@ -29,7 +28,7 @@ class PackedIntLists(val size: Int, avgRowSize: Int) {
 
         // distribute blocks evenly
         for (row in 0 until size) {
-            offsets[row] = row * blockSize
+            offsets[row] = row * initialCapacityPerValue
         }
     }
 
@@ -64,12 +63,23 @@ class PackedIntLists(val size: Int, avgRowSize: Int) {
         throw IndexOutOfBoundsException("row=$index col=$index2")
     }
 
-    inline fun forEach(index: Int, callback: (Int) -> Unit) {
-        var pos = offsets[index]
+    inline fun forEach(index: Int, callback: (Int) -> Unit): Int {
+        val pos0 = offsets[index]
+        var pos = pos0
         while (true) {
             val value = values[pos]
-            if (value == -1) return
+            if (value == -1) return pos - pos0
             callback(value)
+            pos++
+        }
+    }
+
+    fun contains(index: Int, value: Int): Boolean {
+        var pos = offsets[index]
+        while (true) {
+            val valueI = values[pos]
+            if (valueI == -1) return false
+            if (valueI == value) return true
             pos++
         }
     }

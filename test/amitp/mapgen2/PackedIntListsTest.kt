@@ -10,7 +10,7 @@ class PackedIntListsTest {
 
     @Test
     fun testAddAndGet() {
-        val lists = PackedIntLists(size = 3, avgRowSize = 2)
+        val lists = PackedIntLists(size = 3, initialCapacityPerValue = 2)
         lists.add(0, 10)
         lists.add(0, 20)
         lists.add(1, 99)
@@ -25,7 +25,7 @@ class PackedIntListsTest {
 
     @Test
     fun testForEach() {
-        val lists = PackedIntLists(size = 1, avgRowSize = 2)
+        val lists = PackedIntLists(size = 1, initialCapacityPerValue = 2)
         lists.add(0, 1)
         lists.add(0, 2)
         lists.add(0, 3)
@@ -38,7 +38,7 @@ class PackedIntListsTest {
 
     @Test
     fun testAppendingWithNecessaryRightShift() {
-        val lists = PackedIntLists(size = 2, avgRowSize = 1)
+        val lists = PackedIntLists(size = 2, initialCapacityPerValue = 1)
         // Row 0 and 1 will be packed close together
         println("[[],[]] ${lists.offsets.toList()}, ${lists.values.toList()}")
         lists.add(0, 11)
@@ -55,7 +55,7 @@ class PackedIntListsTest {
 
     @Test
     fun testGrowingWhenOutOfCapacity() {
-        val lists = PackedIntLists(size = 1, avgRowSize = 1)
+        val lists = PackedIntLists(size = 1, initialCapacityPerValue = 1)
         // Fill far beyond initial size
         for (i in 0 until 50) {
             lists.add(0, i)
@@ -66,7 +66,7 @@ class PackedIntListsTest {
 
     @Test
     fun testThrowsOutOfBounds() {
-        val lists = PackedIntLists(size = 1, avgRowSize = 1)
+        val lists = PackedIntLists(size = 1, initialCapacityPerValue = 1)
         lists.add(0, 7)
         assertThrows<IndexOutOfBoundsException> {
             lists.get(0, 1)

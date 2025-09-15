@@ -1,10 +1,12 @@
 package amitp.mapgen2
 
+import amitp.mapgen2.geometry.Corner
 import amitp.mapgen2.graph.Graph
 import amitp.mapgen2.graph.VoronoiGraphBuilder
 import amitp.mapgen2.pointselector.GridPointSelector
 import amitp.mapgen2.pointselector.RandomPointSelector
 import amitp.mapgen2.shape.PerlinIslandShape
+import org.joml.Vector2f
 import java.awt.Color
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
@@ -36,45 +38,51 @@ fun main() {
     g.fillRect(0, 0, img.width, img.height)
 
     val edges = map.edges
+    val corners = map.corners
     for (index in 0 until edges.size) {
-        val v0 = map.corners.getOrNull(edges.getV0(index))?.point ?: continue
-        val v1 = map.corners.getOrNull(edges.getV1(index))?.point ?: continue
+        val v0 = corners.getOrNull(edges.getV0(index))?.point ?: continue
+        val v1 = corners.getOrNull(edges.getV1(index))?.point ?: continue
 
         g.color = Color.WHITE
         g.drawLine(v0.x.toInt(), v0.y.toInt(), v1.x.toInt(), v1.y.toInt())
     }
 
     // println("Centers: ${map.centers!!.size}")
-    map.centers.forEach { center ->
-        val biomeColor = biomeColors[center.biome] ?: Color.LIGHT_GRAY
+    val centers = map.centers
+    for (i in 0 until centers.size) {
+        val biomeColor = biomeColors[centers.getBiome(i)] ?: Color.LIGHT_GRAY
         g.color = biomeColor
 
+        val corners1 = ArrayList<Vector2f>()
+        centers.corners.forEach(i) { c ->
+            corners1.add(corners[c].point)
+        }
+
         // Skip centers with < 3 corners (degenerate)
-        if (center.corners.size < 3) return@forEach
+        if (corners1.size < 3) continue
+        val cx = corners1.map { it.x }.average()
+        val cy = corners1.map { it.y }.average()
 
-        val cx = center.corners.map { it.point.x }.average()
-        val cy = center.corners.map { it.point.y }.average()
-
-        val sortedCorners = center.corners.sortedBy {
-            val dx = it.point.x - cx
-            val dy = it.point.y - cy
+        val sortedCorners = corners1.sortedBy {
+            val dx = it.x - cx
+            val dy = it.y - cy
             atan2(dy, dx)
         }
 
-        val xPoints = sortedCorners.map { it.point.x.toInt() }.toIntArray()
-        val yPoints = sortedCorners.map { it.point.y.toInt() }.toIntArray()
+        val xPoints = sortedCorners.map { it.x.toInt() }.toIntArray()
+        val yPoints = sortedCorners.map { it.y.toInt() }.toIntArray()
 
-        g.fillPolygon(xPoints, yPoints, center.corners.size)
+        g.fillPolygon(xPoints, yPoints, corners1.size)
 
         // Optional: draw edges in black for visibility
         g.color = Color.BLACK
-        g.drawPolygon(xPoints, yPoints, center.corners.size)
+        g.drawPolygon(xPoints, yPoints, corners1.size)
     }
 
     for (index in 0 until edges.size) {
         if (edges.hasRivers(index)) {
-            val v0 = map.corners.getOrNull(edges.getV0(index))?.point ?: continue
-            val v1 = map.corners.getOrNull(edges.getV1(index))?.point ?: continue
+            val v0 = corners.getOrNull(edges.getV0(index))?.point ?: continue
+            val v1 = corners.getOrNull(edges.getV1(index))?.point ?: continue
 
             g.color = Color.CYAN
             g.drawLine(v0.x.toInt(), v0.y.toInt(), v1.x.toInt(), v1.y.toInt())
@@ -97,24 +105,30 @@ fun renderHeightMap(map: Graph, size: Int): BufferedImage {
     // Optional: anti-aliasing
     g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
-    map.centers.forEach { center ->
-        if (center.corners.size < 3) return@forEach
+    val centers = map.centers
+    val corners = map.corners
+    for (i in 0 until centers.size) {
 
         // Compute polygon centroid
-        val cx = center.corners.map { it.point.x }.average()
-        val cy = center.corners.map { it.point.y }.average()
+        val corners1 = ArrayList<Corner>()
+        centers.corners.forEach(i) { c ->
+            corners1.add(corners[c])
+        }
+        if (corners1.size < 3) continue
+        val cx = corners1.map { it.point.x }.average()
+        val cy = corners1.map { it.point.y }.average()
 
         // Sort corners clockwise
-        val sortedCorners = center.corners.sortedBy {
+        val sortedCorners = corners1.sortedBy {
             val dx = it.point.x - cx
             val dy = it.point.y - cy
             atan2(dy, dx)
         }
 
         // Average elevation for this polygon
-        val avgElevation = center.corners.map { it.elevation }.average().coerceIn(0.0, 1.0)
+        val avgElevation = corners1.map { it.elevation }.average().coerceIn(0.0, 1.0)
 
-        val gray = if (center.ocean || center.coast) 12
+        val gray = if (centers.isOcean(i) || centers.isCoast(i)) 12
         else (avgElevation * 255).toInt().coerceIn(0, 255)
         g.color = Color(gray, gray, gray)
 

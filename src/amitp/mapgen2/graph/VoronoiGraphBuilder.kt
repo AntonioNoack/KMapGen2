@@ -1,9 +1,10 @@
 package amitp.mapgen2.graph
 
-import amitp.mapgen2.geometry.Center
+import amitp.mapgen2.geometry.CenterList
 import amitp.mapgen2.geometry.Corner
 import amitp.mapgen2.geometry.EdgeList
 import amitp.mapgen2.pointselector.PointSelector
+import amitp.mapgen2.utils.PackedIntLists
 import me.anno.maths.Packing.pack64
 import org.joml.Vector2f
 import speiger.primitivecollections.LongToObjectHashMap
@@ -38,14 +39,14 @@ class VoronoiGraphBuilder(
      * */
     private fun improveCorners(graph: Graph) {
         val corners = graph.corners
-        val newCorners = Array(corners.size) { Vector2f(0f, 0f) }
-
-        for (q in corners) {
-            newCorners[q.index] = if (q.border) q.point else {
+        val centers = graph.centers
+        val newCorners = Array(corners.size) {
+            val q = corners[it]
+            if (q.border) q.point else {
                 val avg = Vector2f(0f, 0f)
                 for (r in q.touches) {
-                    avg.x += r.point.x
-                    avg.y += r.point.y
+                    avg.x += centers.getPointX(r)
+                    avg.y += centers.getPointY(r)
                 }
                 avg.x /= q.touches.size
                 avg.y /= q.touches.size
@@ -61,7 +62,10 @@ class VoronoiGraphBuilder(
     private fun buildGraph(points: FloatArray, voronoi: Voronoi, size: Float): Graph {
 
         // Create Center objects for each point
-        val centers = (0 until points.size / 2).map { Center(Vector2f(points, it * 2)) }
+        val centers = CenterList(points.size shr 1)
+        for (i in 0 until centers.size) {
+            centers.setPoint(i, points[i * 2], points[i * 2 + 1])
+        }
 
         // Helper: create or reuse Corner object
         val corners = ArrayList<Corner>()
@@ -77,11 +81,17 @@ class VoronoiGraphBuilder(
             }
         }
 
-        fun addIfNotPresent(list: ArrayList<Center>, c: Center?) {
-            if (c != null && !list.contains(c)) list.add(c)
+        fun addIfNotPresent(list: PackedIntLists, index: Int, c: Int) {
+            if (c >= 0 && !list.contains(index, c)) {
+                list.add(index, c)
+            }
         }
 
         fun addIfNotPresent(list: ArrayList<Corner>, c: Corner?) {
+            if (c != null && !list.contains(c)) list.add(c)
+        }
+
+        fun addIfNotPresent(list: ArrayList<Int>, c: Int?) {
             if (c != null && !list.contains(c)) list.add(c)
         }
 
@@ -90,8 +100,8 @@ class VoronoiGraphBuilder(
         val edges = EdgeList(edges0.size)
 
         for (edgeIndex in 0 until edges0.size) {
-            val d0 = centers.getOrNull(edges0.getRegionL(edgeIndex))
-            val d1 = centers.getOrNull(edges0.getRegionR(edgeIndex))
+            val d0 = edges0.getRegionL(edgeIndex)
+            val d1 = edges0.getRegionR(edgeIndex)
 
             val v0 = makeCorner(edges0.getVertex(edgeIndex, 0), edges0.getVertex(edgeIndex, 1))
             val v1 = makeCorner(edges0.getVertex(edgeIndex, 2), edges0.getVertex(edgeIndex, 3))
@@ -100,17 +110,17 @@ class VoronoiGraphBuilder(
             edges.setV1(edgeIndex, v1)
 
             // Centers point to edges
-            d0?.borders?.add(edgeIndex)
-            d1?.borders?.add(edgeIndex)
+            if (d0 >= 0) centers.borders.add(d0, edgeIndex)
+            if (d1 >= 0) centers.borders.add(d1, edgeIndex)
 
             // Corners point to edges
             v0?.protrudes?.add(edgeIndex)
             v1?.protrudes?.add(edgeIndex)
 
             // Centers point to centers
-            if (d0 != null && d1 != null) {
-                addIfNotPresent(d0.neighbors, d1)
-                addIfNotPresent(d1.neighbors, d0)
+            if (d0 >= 0 && d1 >= 0) {
+                addIfNotPresent(centers.neighbors, d0, d1)
+                addIfNotPresent(centers.neighbors, d1, d0)
             }
 
             // Corners point to corners
@@ -120,8 +130,14 @@ class VoronoiGraphBuilder(
             }
 
             // Centers point to corners
-            d0?.let { addIfNotPresent(it.corners, v0); addIfNotPresent(it.corners, v1) }
-            d1?.let { addIfNotPresent(it.corners, v0); addIfNotPresent(it.corners, v1) }
+            if (d0 >= 0) {
+                if (v0 != null) addIfNotPresent(centers.corners, d0, v0.index)
+                if (v1 != null) addIfNotPresent(centers.corners, d0, v1.index)
+            }
+            if (d1 >= 0) {
+                if (v0 != null) addIfNotPresent(centers.corners, d1, v0.index)
+                if (v1 != null) addIfNotPresent(centers.corners, d1, v1.index)
+            }
 
             // Corners point to centers
             v0?.let { addIfNotPresent(it.touches, d0); addIfNotPresent(it.touches, d1) }
