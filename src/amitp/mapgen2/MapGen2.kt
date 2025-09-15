@@ -225,7 +225,7 @@ object MapGen2 {
             while (!current.coast && !current.ocean) {
                 if (current == current.downslope) break // stuck
 
-                val edge = lookupEdgeFromCorner(current, current.downslope!!, edges)
+                val edge = lookupEdgeFromCorner(current, current.downslope!!.index, edges)
                 if (edge != -1) {
                     edges.addRiver(edge)
                     current.river++
@@ -290,17 +290,13 @@ object MapGen2 {
         }
     }
 
-    fun lookupEdgeFromCorner(
-        q: Corner, s: Corner,
-        edges: EdgeList
-    ): Int {
+    fun lookupEdgeFromCorner(q: Corner, sIndex: Int, edges: EdgeList): Int {
         val edges1 = q.protrudes
-        val s = s.index
         for (index in 0 until edges1.size) {
             val edgeIndex = edges1[index]
             val v0 = edges.getV0(edgeIndex)
             val v1 = edges.getV1(edgeIndex)
-            if (v0 == s || v1 == s) return edgeIndex
+            if (v0 == sIndex || v1 == sIndex) return edgeIndex
         }
         return -1
     }
