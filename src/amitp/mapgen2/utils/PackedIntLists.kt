@@ -22,14 +22,7 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         val initialCapacityPerValue = max(initialCapacityPerValue, 1)
         val totalCapacity = size * initialCapacityPerValue + (initialCapacityPerValue == 1).toInt()
         values = IntArray(totalCapacity)
-
-        // mark values as invalid
-        values.fill(-1)
-
-        // distribute blocks evenly
-        for (row in 0 until size) {
-            offsets[row] = row * initialCapacityPerValue
-        }
+        clear()
     }
 
     fun add(index: Int, value: Int) {
@@ -99,5 +92,17 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         val newValues = values.copyOf(values.size * 2)
         newValues.fill(-1, values.size, newValues.size)
         this.values = newValues
+    }
+
+    fun clear() {
+
+        // mark values as invalid
+        values.fill(-1)
+
+        // distribute blocks evenly
+        val initialCapacityPerValue = values.size / size
+        for (row in 0 until size) {
+            offsets[row] = row * initialCapacityPerValue
+        }
     }
 }

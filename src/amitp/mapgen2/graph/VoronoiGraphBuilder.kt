@@ -2,6 +2,7 @@ package amitp.mapgen2.graph
 
 import amitp.mapgen2.geometry.CenterList
 import amitp.mapgen2.geometry.Corner
+import amitp.mapgen2.geometry.CornerList.Companion.toCornerList
 import amitp.mapgen2.geometry.EdgeList
 import amitp.mapgen2.pointselector.PointSelector
 import amitp.mapgen2.utils.PackedIntLists
@@ -144,7 +145,9 @@ class VoronoiGraphBuilder(
             v1?.let { addIfNotPresent(it.touches, d0); addIfNotPresent(it.touches, d1) }
         }
 
-        return Graph(centers, corners, edges)
+        val graph = Graph(centers, corners, edges)
+        graph.corners.toCornerList(graph.cornerList)
+        return graph
     }
 
 }
