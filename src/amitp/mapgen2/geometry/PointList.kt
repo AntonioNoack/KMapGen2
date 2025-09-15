@@ -26,6 +26,12 @@ open class PointList(val size: Int) {
         floats[i + 1] = y
     }
 
+    fun setPoints(values: FloatArray) {
+        for (i in 0 until size) {
+            setPoint(i, values[i * 2], values[i * 2 + 1])
+        }
+    }
+
     fun setElevation(index: Int, value: Float) {
         floats[index * 4 + 2] = value
     }

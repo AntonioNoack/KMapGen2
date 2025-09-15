@@ -8,7 +8,6 @@ import amitp.mapgen2.geometry.EdgeList
 class Graph(
     val centers: CenterList,
     val corners: List<Corner>,
-    val edges: EdgeList
-) {
-    val cornerList = CornerList(corners.size)
-}
+    val edges: EdgeList,
+    val cornerList: CornerList ,
+)
