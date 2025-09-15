@@ -1,11 +1,10 @@
 package amitp.mapgen2
 
-import amitp.mapgen2.geometry.CornerList
-import amitp.mapgen2.graph.Graph
-import amitp.mapgen2.graph.VoronoiGraphBuilder
+import amitp.mapgen2.structures.CornerList
+import amitp.mapgen2.graphbuilder.VoronoiGraphBuilder
 import amitp.mapgen2.pointselector.GridPointSelector
 import amitp.mapgen2.pointselector.RandomPointSelector
-import amitp.mapgen2.shape.PerlinIslandShape
+import amitp.mapgen2.islandshapes.PerlinIslandShape
 import me.anno.maths.Maths.clamp
 import org.joml.Vector2f
 import java.awt.Color
@@ -103,7 +102,7 @@ fun CornerList.getOrNull(i: Int): Vector2f? {
     return if (i < 0) null else Vector2f(getPointX(i), getPointY(i))
 }
 
-fun renderHeightMap(map: Graph, size: Int): BufferedImage {
+fun renderHeightMap(map: GeneratedMap, size: Int): BufferedImage {
     val image = BufferedImage(size, size, BufferedImage.TYPE_INT_RGB)
     val g = image.createGraphics()
 

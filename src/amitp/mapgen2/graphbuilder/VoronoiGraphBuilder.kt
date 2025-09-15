@@ -1,10 +1,11 @@
-package amitp.mapgen2.graph
+package amitp.mapgen2.graphbuilder
 
-import amitp.mapgen2.geometry.CenterList
-import amitp.mapgen2.geometry.CornerList
-import amitp.mapgen2.geometry.EdgeList
+import amitp.mapgen2.GeneratedMap
+import amitp.mapgen2.structures.CenterList
+import amitp.mapgen2.structures.CornerList
+import amitp.mapgen2.structures.EdgeList
 import amitp.mapgen2.pointselector.PointSelector
-import amitp.mapgen2.utils.PackedIntLists
+import amitp.mapgen2.structures.PackedIntLists
 import me.anno.maths.Packing.pack64
 import me.anno.maths.Packing.unpackHighFrom64
 import me.anno.maths.Packing.unpackLowFrom64
@@ -14,7 +15,7 @@ class VoronoiGraphBuilder(
     val pointSelector: PointSelector
 ) : GraphBuilder {
 
-    override fun buildGraph(size: Float, numCells: Int, seed: Long): Graph {
+    override fun buildGraph(size: Float, numCells: Int, seed: Long): GeneratedMap {
         val t0 = System.nanoTime()
         val points = pointSelector.select(size, numCells, seed)
         val t1 = System.nanoTime()
@@ -47,7 +48,7 @@ class VoronoiGraphBuilder(
             } else {
                 var sumX = 0f
                 var sumY = 0f
-                val numTouches = corners.touches.forEach(q) { r ->
+                val numTouches = corners.centers.forEach(q) { r ->
                     sumX += centers.getPointX(r)
                     sumY += centers.getPointY(r)
                 }
@@ -58,7 +59,7 @@ class VoronoiGraphBuilder(
         corners.setPoints(newCorners)
     }
 
-    private fun buildGraph(points: FloatArray, voronoi: Voronoi, size: Float): Graph {
+    private fun buildGraph(points: FloatArray, voronoi: Voronoi, size: Float): GeneratedMap {
 
         // Create Center objects for each point
         val centers = CenterList(points.size shr 1)
@@ -76,15 +77,12 @@ class VoronoiGraphBuilder(
         }
 
         fun getCorner(px: Float, py: Float): Int {
-            if (px.isNaN() || py.isNaN()) return -1
             val key = pack64(px.toRawBits(), py.toRawBits())
             return cornerMap[key]
-            // todo this assignment is missing
-            //  corner.border = px <= 0f || px >= size || py <= 0f || py >= size
         }
 
         fun addIfNotPresent(list: PackedIntLists, index: Int, c: Int) {
-            if (c >= 0 && !list.contains(index, c)) {
+            if (!list.contains(index, c)) {
                 list.add(index, c)
             }
         }
@@ -117,12 +115,12 @@ class VoronoiGraphBuilder(
             edges.setV1(edgeIndex, v1)
 
             // Centers point to edges
-            if (d0 >= 0) centers.borders.add(d0, edgeIndex)
-            if (d1 >= 0) centers.borders.add(d1, edgeIndex)
+            if (d0 >= 0) centers.edges.add(d0, edgeIndex)
+            if (d1 >= 0) centers.edges.add(d1, edgeIndex)
 
             // Corners point to edges
-            if (v0 >= 0) cornerList.protrudes.add(v0, edgeIndex)
-            if (v1 >= 0) cornerList.protrudes.add(v1, edgeIndex)
+            if (v0 >= 0) cornerList.edges.add(v0, edgeIndex)
+            if (v1 >= 0) cornerList.edges.add(v1, edgeIndex)
 
             // Centers point to centers
             if (d0 >= 0 && d1 >= 0) {
@@ -148,16 +146,16 @@ class VoronoiGraphBuilder(
 
             // Corners point to centers
             if (v0 >= 0) {
-                addIfNotPresent(cornerList.touches, v0, d0)
-                addIfNotPresent(cornerList.touches, v0, d1)
+                addIfNotPresent(cornerList.centers, v0, d0)
+                addIfNotPresent(cornerList.centers, v0, d1)
             }
             if (v1 >= 0) {
-                addIfNotPresent(cornerList.touches, v1, d0)
-                addIfNotPresent(cornerList.touches, v1, d1)
+                addIfNotPresent(cornerList.centers, v1, d0)
+                addIfNotPresent(cornerList.centers, v1, d1)
             }
         }
 
-        return Graph(centers, cornerList, edges)
+        return GeneratedMap(centers, cornerList, edges)
     }
 
 }

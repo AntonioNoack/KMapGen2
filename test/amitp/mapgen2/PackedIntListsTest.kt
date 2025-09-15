@@ -1,6 +1,6 @@
 package amitp.mapgen2
 
-import amitp.mapgen2.utils.PackedIntLists
+import amitp.mapgen2.structures.PackedIntLists
 import me.anno.utils.assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows

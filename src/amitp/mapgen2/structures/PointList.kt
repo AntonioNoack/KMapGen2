@@ -1,8 +1,11 @@
-package amitp.mapgen2.geometry
+package amitp.mapgen2.structures
 
 import me.anno.utils.types.Booleans.hasFlag
 import me.anno.utils.types.Booleans.withFlag
 
+/**
+ * Base class for lists with positions, elevation, moisture (humidity), and water/ocean/coast/border flags without much memory overhead.
+ * */
 open class PointList(val size: Int) {
 
     companion object {

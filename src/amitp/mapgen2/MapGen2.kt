@@ -1,12 +1,11 @@
 package amitp.mapgen2
 
 import amitp.mapgen2.Biome.Companion.getBiome
-import amitp.mapgen2.geometry.CenterList
-import amitp.mapgen2.geometry.CornerList
-import amitp.mapgen2.geometry.EdgeList
-import amitp.mapgen2.graph.Graph
-import amitp.mapgen2.graph.GraphBuilder
-import amitp.mapgen2.shape.IslandShape
+import amitp.mapgen2.graphbuilder.GraphBuilder
+import amitp.mapgen2.islandshapes.IslandShape
+import amitp.mapgen2.structures.CenterList
+import amitp.mapgen2.structures.CornerList
+import amitp.mapgen2.structures.EdgeList
 import me.anno.utils.Clock
 import me.anno.utils.algorithms.Sortable
 import me.anno.utils.structures.arrays.IntArrayList
@@ -22,47 +21,17 @@ object MapGen2 {
     private val LOGGER = LogManager.getLogger(MapGen2::class)
     const val LAKE_THRESHOLD = 0.3
 
-    fun buildGraph(
-        graphBuilder: GraphBuilder, numPoints: Int,
-        mapRandom: Random, size: Float,
-    ): Graph = graphBuilder.buildGraph(size, numPoints, mapRandom.nextLong())
-
-    fun assignElevations(islandShape: IslandShape, graph: Graph, size: Float) {
-        assignCornerElevations(islandShape, graph.corners, size)
-        assignOceanCoastAndLand(graph.centers, graph.corners)
-        redistributeElevations(graph.corners, landCorners(graph.corners))
-        clearOceanElevation(graph.corners)
-        assignPolygonElevations(graph.centers, graph.corners)
-    }
-
-    fun clearOceanElevation(corners: CornerList) {
-        for (q in 0 until corners.size) {
-            if (corners.isOcean(q) || corners.isCoast(q)) {
-                corners.setElevation(q, 0f)
-            }
-        }
-    }
-
-    fun assignMoisture(graph: Graph, mapRandom: Random) {
-        calculateDownslopes(graph.corners)
-        calculateWatersheds(graph.corners)
-        createRivers(graph.corners, graph.edges, graph.centers.size, mapRandom)
-        assignCornerMoisture(graph.corners)
-        redistributeMoisture(graph.corners, landCorners(graph.corners))
-        assignPolygonMoisture(graph.centers, graph.corners)
-    }
-
     fun generate(
         size: Float,
         islandShape: IslandShape,
         graphBuilder: GraphBuilder,
         numPoints: Int,
         variant: Long
-    ): Graph {
+    ): GeneratedMap {
         val mapRandom = Random(variant)
 
         val clock = Clock(LOGGER)
-        val graph = buildGraph(graphBuilder, numPoints, mapRandom, size)
+        val graph = generateMap(graphBuilder, numPoints, mapRandom, size)
         clock.stop("Build Graph")
 
         assignElevations(islandShape, graph, size)
@@ -77,7 +46,37 @@ object MapGen2 {
         return graph
     }
 
-    fun landCorners(corners: CornerList): IntArrayList {
+    private fun generateMap(
+        graphBuilder: GraphBuilder, numPoints: Int,
+        mapRandom: Random, size: Float,
+    ): GeneratedMap = graphBuilder.buildGraph(size, numPoints, mapRandom.nextLong())
+
+    private fun assignElevations(islandShape: IslandShape, graph: GeneratedMap, size: Float) {
+        assignCornerElevations(islandShape, graph.corners, size)
+        assignOceanCoastAndLand(graph.centers, graph.corners)
+        redistributeElevations(graph.corners, landCorners(graph.corners))
+        clearOceanElevation(graph.corners)
+        assignPolygonElevations(graph.centers, graph.corners)
+    }
+
+    private fun clearOceanElevation(corners: CornerList) {
+        for (q in 0 until corners.size) {
+            if (corners.isOcean(q) || corners.isCoast(q)) {
+                corners.setElevation(q, 0f)
+            }
+        }
+    }
+
+    private fun assignMoisture(graph: GeneratedMap, mapRandom: Random) {
+        calculateDownslopes(graph.corners)
+        calculateWatersheds(graph.corners)
+        createRivers(graph.corners, graph.edges, graph.centers.size, mapRandom)
+        assignCornerMoisture(graph.corners)
+        redistributeMoisture(graph.corners, landCorners(graph.corners))
+        assignPolygonMoisture(graph.centers, graph.corners)
+    }
+
+    private fun landCorners(corners: CornerList): IntArrayList {
         val result = IntArrayList(corners.size)
         for (i in 0 until corners.size) {
             if (!corners.isOcean(i) && !corners.isCoast(i)) {
@@ -87,7 +86,7 @@ object MapGen2 {
         return result
     }
 
-    fun assignCornerElevations(islandShape: IslandShape, corners: CornerList, size: Float) {
+    private fun assignCornerElevations(islandShape: IslandShape, corners: CornerList, size: Float) {
         val queue: ArrayDeque<Int> = ArrayDeque()
 
         // Initialize border corners
@@ -128,7 +127,7 @@ object MapGen2 {
         }
     }
 
-    fun assignOceanCoastAndLand(centers: CenterList, corners: CornerList) {
+    private fun assignOceanCoastAndLand(centers: CenterList, corners: CornerList) {
         // todo probably could use a more efficient data structure without encapsulation
         val queue = ArrayDeque<Int>()
 
@@ -177,7 +176,7 @@ object MapGen2 {
         for (q in 0 until corners.size) {
             var numOcean = 0
             var numLand = 0
-            val numTouches = corners.touches.forEach(q) { p ->
+            val numTouches = corners.centers.forEach(q) { p ->
                 if (centers.isOcean(p)) numOcean++
                 if (!centers.isWater(p)) numLand++
             }
@@ -190,7 +189,7 @@ object MapGen2 {
         }
     }
 
-    fun assignPolygonElevations(centers: CenterList, corners: CornerList) {
+    private fun assignPolygonElevations(centers: CenterList, corners: CornerList) {
         for (p in 0 until centers.size) {
             var sumElevation = 0f
             val size = centers.corners.forEach(p) { q ->
@@ -200,7 +199,7 @@ object MapGen2 {
         }
     }
 
-    fun calculateDownslopes(corners: CornerList) {
+    private fun calculateDownslopes(corners: CornerList) {
         for (q in 0 until corners.size) {
             var lowest = q
             corners.adjacent.forEach(q) { s ->
@@ -212,7 +211,7 @@ object MapGen2 {
         }
     }
 
-    fun calculateWatersheds(corners: CornerList) {
+    private fun calculateWatersheds(corners: CornerList) {
         // Step 1: Initialize watershed pointers
         for (q in 0 until corners.size) {
             val watershed = if (!corners.isOcean(q) && !corners.isCoast(q)) corners.getDownslope(q) else q
@@ -248,7 +247,7 @@ object MapGen2 {
         }
     }
 
-    fun createRivers(corners: CornerList, edges: EdgeList, numPoints: Int, mapRandom: Random) {
+    private fun createRivers(corners: CornerList, edges: EdgeList, numPoints: Int, mapRandom: Random) {
         val maxAttempts = numPoints / 10
         repeat(maxAttempts) {
             val q = mapRandom.nextInt(corners.size)
@@ -265,23 +264,23 @@ object MapGen2 {
                 val edge = lookupEdgeFromCorner(corners, current, corners.getDownslope(current), edges)
                 if (edge != -1) {
                     edges.addRiver(edge)
-                    corners.addRiver(current)
-                    corners.addRiver(corners.getDownslope(current))
+                    corners.incRiverFlowStrength(current)
+                    corners.incRiverFlowStrength(corners.getDownslope(current))
                 }
                 current = corners.getDownslope(current)
             }
         }
     }
 
-    fun assignCornerMoisture(corners: CornerList) {
+    private fun assignCornerMoisture(corners: CornerList) {
         // todo use data-structure without boxing
         val queue = ArrayDeque<Int>()
 
         // Step 1: Initialize moisture and enqueue freshwater sources
         for (q in 0 until corners.size) {
-            if ((corners.isWater(q) || corners.getRiver(q) > 0) && !corners.isOcean(q)) {
-                val moisture = if (corners.getRiver(q) > 0) {
-                    min(3f, 0.2f * corners.getRiver(q))
+            if ((corners.isWater(q) || corners.getRiverFlowStrength(q) > 0) && !corners.isOcean(q)) {
+                val moisture = if (corners.getRiverFlowStrength(q) > 0) {
+                    min(3f, 0.2f * corners.getRiverFlowStrength(q))
                 } else 1f
                 corners.setMoisture(q, moisture)
                 queue.addLast(q)
@@ -310,7 +309,7 @@ object MapGen2 {
         }
     }
 
-    fun assignPolygonMoisture(centers: CenterList, corners: CornerList) {
+    private fun assignPolygonMoisture(centers: CenterList, corners: CornerList) {
         for (ci in 0 until centers.size) {
             var sumMoisture = 0f
             val size = centers.corners.forEach(ci) { q ->
@@ -321,14 +320,14 @@ object MapGen2 {
         }
     }
 
-    fun assignBiomes(centers: CenterList) {
+    private fun assignBiomes(centers: CenterList) {
         for (p in 0 until centers.size) {
             centers.setBiome(p, getBiome(centers, p))
         }
     }
 
-    fun lookupEdgeFromCorner(corners: CornerList, q: Int, sIndex: Int, edges: EdgeList): Int {
-        corners.protrudes.forEach(q) { edgeIndex ->
+    private fun lookupEdgeFromCorner(corners: CornerList, q: Int, sIndex: Int, edges: EdgeList): Int {
+        corners.edges.forEach(q) { edgeIndex ->
             val v0 = edges.getV0(edgeIndex)
             val v1 = edges.getV1(edgeIndex)
             if (v0 == sIndex || v1 == sIndex) return edgeIndex
@@ -336,39 +335,40 @@ object MapGen2 {
         return -1
     }
 
-    fun inside(islandShape: IslandShape, invSize: Float, p: Vector2f): Boolean {
+    private fun inside(islandShape: IslandShape, invSize: Float, p: Vector2f): Boolean {
         val nx = p.x * invSize * 2f - 1f
         val ny = p.y * invSize * 2f - 1f
         return islandShape.isOnLand(nx, ny)
     }
 
-    fun redistributeElevations(corners: CornerList, locations: IntArrayList) {
-        val SCALE_FACTOR = 1.1f
+    private fun redistributeElevations(corners: CornerList, locations: IntArrayList) {
+        val scaleFactorSq = 1.1f
+        val scaleFactor = sqrt(scaleFactorSq)
 
         // Sort corners by elevation ascending
         val sorted = locations.sortedBy { corners.getElevation(it) }
 
-        val n = sorted.size
+        val invLast = 1f / max(sorted.lastIndex, 1)
         for (i in 0 until sorted.size) {
-            val y = i.toFloat() / (n - 1).coerceAtLeast(1)
+            val y = i * invLast
             // Solve x^2 - 2x + y = 0 -> x = 1 - sqrt(1 - y)
-            var x = sqrt(SCALE_FACTOR) - sqrt(SCALE_FACTOR * (1f - y))
+            var x = scaleFactor * (1f - sqrt(1f - y))
             if (x > 1f) x = 1f
             corners.setElevation(sorted[i], x)
         }
     }
 
-    fun redistributeMoisture(corners: CornerList, locations: IntArrayList) {
+    private fun redistributeMoisture(corners: CornerList, locations: IntArrayList) {
         // Sort corners by moisture ascending
         val sorted = locations.sortedBy { corners.getMoisture(it) }
 
-        val n = sorted.size
+        val invLast = 1f / max(sorted.lastIndex, 1)
         for (i in 0 until sorted.size) {
-            corners.setMoisture(sorted[i], i.toFloat() / (n - 1).coerceAtLeast(1))
+            corners.setMoisture(sorted[i], i * invLast)
         }
     }
 
-    fun IntArrayList.sortedBy(map: (Int) -> Float): IntArrayList {
+    private fun IntArrayList.sortedBy(map: (Int) -> Float): IntArrayList {
         val self = this
         object : Sortable {
             override fun move(dstI: Int, srcI: Int) {

@@ -1,7 +1,10 @@
-package amitp.mapgen2.geometry
+package amitp.mapgen2.structures
 
 import org.joml.Vector2f
 
+/**
+ * Temporary storage of regions (cell indices) and vertices (positions) for Voronoi cell algorithm
+ * */
 class VEdgeList(val size: Int) {
 
     // size indices

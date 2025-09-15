@@ -1,4 +1,4 @@
-package amitp.mapgen2.geometry
+package amitp.mapgen2.structures
 
 class EdgeList(val size: Int) {
 

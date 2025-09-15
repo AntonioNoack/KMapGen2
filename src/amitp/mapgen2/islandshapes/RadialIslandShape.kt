@@ -1,4 +1,4 @@
-package amitp.mapgen2.shape
+package amitp.mapgen2.islandshapes
 
 import me.anno.maths.Maths.PIf
 import me.anno.maths.Maths.TAUf

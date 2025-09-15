@@ -1,6 +1,6 @@
-package amitp.mapgen2.graph
+package amitp.mapgen2.graphbuilder
 
-import amitp.mapgen2.geometry.VEdgeList
+import amitp.mapgen2.structures.VEdgeList
 import me.anno.graph.octtree.QuadTreeF
 import me.anno.maths.Packing.pack64
 import me.anno.maths.Packing.unpackHighFrom64
@@ -15,6 +15,9 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 /** ---------- Voronoi implementation using Bowyer-Watson Delaunay ----------
+ *
+ * todo use a faster algorithm, e.g. we could use that we generate our points from a grid,
+ *   or just in general create a vertex/triangle lookup...
  *
  * Produces Delaunay triangles, computes circumcenters and uses them to
  * form Voronoi vertices and Voronoi edges. This is not a high-performance
@@ -109,23 +112,6 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
                 val dy = cc.y - pay
                 val r2 = dx * dx + dy * dy
                 return Triangle(a, b, c, cc.x, cc.y, r2)
-            }
-
-            private fun circumcenter(p: Vector2f, q: Vector2f, r: Vector2f): Vector2f {
-                // compute circumcenter via coordinates
-                val A = q.x - p.x
-                val B = q.y - p.y
-                val C = r.x - p.x
-                val D = r.y - p.y
-                val E = A * (p.x + q.x) + B * (p.y + q.y)
-                val F = C * (p.x + r.x) + D * (p.y + r.y)
-                val G = 2f * (A * (r.y - q.y) - B * (r.x - q.x))
-                return if (abs(G) < 1e-12f) {
-                    // Collinear or nearly; fallback to large circumcenter far away
-                    Vector2f((p.x + q.x + r.x) / 3f, (p.y + q.y + r.y) / 3f)
-                } else {
-                    Vector2f((D * E - B * F) / G, (A * F - C * E) / G)
-                }
             }
 
             private fun circumcenter(
@@ -269,7 +255,7 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
     }
 
     // todo why is this scaling soo badly that we need a 512 size for optimal performance???
-    class TriangleLookup : QuadTreeF<Triangle>(1024) {
+    private class TriangleLookup : QuadTreeF<Triangle>(1024) {
         override fun createChild() = TriangleLookup()
         override fun getMin(data: Triangle): Vector2f = data.min
         override fun getMax(data: Triangle): Vector2f = data.max

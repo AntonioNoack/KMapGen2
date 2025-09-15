@@ -1,4 +1,4 @@
-package amitp.mapgen2.utils
+package amitp.mapgen2.structures
 
 import me.anno.utils.InternalAPI
 import me.anno.utils.types.Booleans.toInt

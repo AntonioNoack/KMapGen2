@@ -1,14 +1,15 @@
-package amitp.mapgen2.geometry
+package amitp.mapgen2.structures
 
-import amitp.mapgen2.utils.PackedIntLists
-
+/**
+ * Storage for the corners
+ * */
 class CornerList(size: Int) : PointList(size) {
 
     private val ints = IntArray(size * 4)
 
-    fun getRiver(index: Int) = ints[index * 4]
-    fun setRiver(index: Int, value: Int) {
-        ints[index * 4] = value
+    fun getRiverFlowStrength(index: Int) = ints[index * 4]
+    fun incRiverFlowStrength(index: Int) {
+        ints[index * 4]++
     }
 
     fun getDownslope(index: Int) = ints[index * 4 + 1]
@@ -26,22 +27,24 @@ class CornerList(size: Int) : PointList(size) {
         ints[index * 4 + 3] = value
     }
 
-    fun addRiver(index: Int) {
-        setRiver(index, getRiver(index) + 1)
-    }
-
     /**
-     * centers
+     * centers for each corner
+     *
+     * todo order them
      * */
-    val touches = PackedIntLists(size, 4)
+    val centers = PackedIntLists(size, 4)
 
     /**
-     * corners
+     * adjacent corners for each corner
+     *
+     * todo order them
      * */
     val adjacent = PackedIntLists(size, 4)
 
     /**
-     * edges
+     * edges for each corner
+     *
+     * todo order them
      * */
-    val protrudes = PackedIntLists(size, 4)
+    val edges = PackedIntLists(size, 4)
 }

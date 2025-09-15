@@ -1,6 +1,6 @@
 package amitp.mapgen2
 
-import amitp.mapgen2.geometry.CenterList
+import amitp.mapgen2.structures.CenterList
 
 enum class Biome {
 
