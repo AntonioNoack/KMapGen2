@@ -23,8 +23,8 @@ class VEdgeList(val size: Int) {
     }
 
     /**
-     * circumcenter of triangle on one side OR
-     * circumcenter of triangle on other side
+     * circumcell of triangle on one side OR
+     * circumcell of triangle on other side
      * */
     fun getVertex(index: Int, comp: Int): Float = vertices[(index shl 2) + comp]
 

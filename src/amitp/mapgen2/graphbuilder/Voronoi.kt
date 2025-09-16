@@ -5,7 +5,6 @@ import me.anno.graph.octtree.QuadTreeF
 import me.anno.maths.Packing.pack64
 import me.anno.maths.Packing.unpackHighFrom64
 import me.anno.maths.Packing.unpackLowFrom64
-import me.anno.utils.algorithms.ForLoop.forLoopSafely
 import org.joml.Vector2f
 import speiger.primitivecollections.LongToIntHashMap
 import speiger.primitivecollections.LongToLongHashMap
@@ -19,7 +18,7 @@ import kotlin.math.sqrt
  * todo use a faster algorithm, e.g. we could use that we generate our points from a grid,
  *   or just in general create a vertex/triangle lookup...
  *
- * Produces Delaunay triangles, computes circumcenters and uses them to
+ * Produces Delaunay triangles, computes circumcells and uses them to
  * form Voronoi vertices and Voronoi edges. This is not a high-performance
  * computational-geometry library, but it is robust enough for map generation.
  *
@@ -29,7 +28,7 @@ import kotlin.math.sqrt
  *   val region = vor.region(sitePoint)   // polygon vertices for that site
  *
  * VEdge.regionL / regionR are indices into the original sites list (or null).
- * VEdge.vertexA / vertexB are circumcenters (Points) - may be null for hull edges.
+ * VEdge.vertexA / vertexB are circumcells (Points) - may be null for hull edges.
  */
 class Voronoi(points: FloatArray, bboxSize: Float) {
 
@@ -46,15 +45,15 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
         val (tris, triAdj) = buildDelaunay(points, bboxSize)
         triangles = tris
 
-        // Compute circumcenters (Voronoi vertices) for every triangle
-        val circumcenters = triangles.map { it.circumcenter() }
+        // Compute circumcells (Voronoi vertices) for every triangle
+        val circumcells = triangles.map { it.circumcell() }
 
         // Build map from triangle edges to adjacent triangles (triAdj)
         // triAdj: map of undirected edge key to list of triangle indices touching it
         val vEdges = VEdgeList(triAdj.size)
 
         // For each undirected edge between two sites, there may be 1 or 2 triangles.
-        // We inspect triAdj to produce a Voronoi edge between the circumcenters of
+        // We inspect triAdj to produce a Voronoi edge between the circumcells of
         // the adjacent triangles. If only one triangle (hull edge), we'll produce a
         // VEdge with one endpoint and the other null.
         var index = 0
@@ -66,8 +65,8 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
             val t0 = unpackHighFrom64(triIndices)
             val t1 = unpackLowFrom64(triIndices)
 
-            val c0 = circumcenters.getOrNull(t0)
-            val c1 = circumcenters.getOrNull(t1)
+            val c0 = circumcells.getOrNull(t0)
+            val c1 = circumcells.getOrNull(t1)
 
             // regionL / regionR are the two sites that share the Delaunay edge
             vEdges.setRegionL(index, i)
@@ -100,26 +99,27 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
             max = Vector2f(circumcircleX, circumcircleY).add(radius, radius)
         }
 
-        // precomputed circumcircle center (sx, sy) and radius squared (sRadiusSq)
+        // precomputed circumcircle cell (sx, sy) and radius squared (sRadiusSq)
         // constructor factory
         companion object {
 
             fun of(a: Int, b: Int, c: Int, pts: FloatArray): Triangle {
                 val pax = pts[a * 2]
                 val pay = pts[a * 2 + 1]
-                val cc = circumcenter(pax, pay, pts[b * 2], pts[b * 2 + 1], pts[c * 2], pts[c * 2 + 1])
+                val cc = circumcell(pax, pay, pts[b * 2], pts[b * 2 + 1], pts[c * 2], pts[c * 2 + 1])
                 val dx = cc.x - pax
                 val dy = cc.y - pay
                 val r2 = dx * dx + dy * dy
                 return Triangle(a, b, c, cc.x, cc.y, r2)
             }
 
-            private fun circumcenter(
+            fun circumcell(
                 px: Float, py: Float,
                 qx: Float, qy: Float,
-                rx: Float, ry: Float
+                rx: Float, ry: Float,
+                dst: Vector2f = Vector2f()
             ): Vector2f {
-                // compute circumcenter via coordinates
+                // compute circumcell via coordinates
                 val A = qx - px
                 val B = qy - py
                 val C = rx - px
@@ -128,16 +128,16 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
                 val F = C * (px + rx) + D * (py + ry)
                 val G = 2f * (A * (ry - qy) - B * (rx - qx))
                 return if (abs(G) < 1e-12f) {
-                    // Collinear or nearly; fallback to large circumcenter far away
-                    Vector2f((px + qx + rx) / 3f, (py + qy + ry) / 3f)
+                    // Collinear or nearly; fallback to large circumcell far away
+                    dst.set((px + qx + rx) / 3f, (py + qy + ry) / 3f)
                 } else {
-                    Vector2f((D * E - B * F) / G, (A * F - C * E) / G)
+                    dst.set((D * E - B * F) / G, (A * F - C * E) / G)
                 }
             }
         }
 
         fun isEndIndex(idx: Int): Boolean = a >= idx || b >= idx || c >= idx
-        fun circumcenter(): Vector2f = Vector2f(circumcircleX, circumcircleY)
+        fun circumcell(): Vector2f = Vector2f(circumcircleX, circumcircleY)
         fun circumcircleContains(pt: Vector2f): Boolean {
             val dx = circumcircleX - pt.x
             val dy = circumcircleY - pt.y
@@ -176,11 +176,15 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
         val badTriangles = ArrayList<Triangle>()
         val edgeCount = LongToIntHashMap(0)
 
+        val shuffledIndices = IntArray(points.size shr 1) { it }
+        shuffledIndices.shuffle()
+
         val p = Vector2f()
-        forLoopSafely(points.size, 2) { i ->
+        for (i in shuffledIndices.indices) {
+            val i2 = shuffledIndices[i] * 2
 
             // 1) find all triangles whose circumcircle contains p
-            p.set(points, i)
+            p.set(points, i2)
             triangleLookup.query(p, p) { tri ->
                 if (tri.circumcircleContains(p)) {
                     badTriangles.add(tri)
@@ -211,7 +215,7 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
                 if (value == 1) {
                     val a = unpackHighFrom64(key)
                     val b = unpackLowFrom64(key)
-                    triangleLookup.add(Triangle.of(a, b, i shr 1, allPts))
+                    triangleLookup.add(Triangle.of(a, b, i2 shr 1, allPts))
                 }
             }
 

@@ -28,23 +28,17 @@ class CornerList(size: Int) : PointList(size) {
     }
 
     /**
-     * centers for each corner
-     *
-     * todo order them
+     * cells for each corner, 3 on average
      * */
-    val centers = PackedIntLists(size, 4)
+    val cells = PackedIntLists(size, 4)
 
     /**
-     * adjacent corners for each corner
-     *
-     * todo order them
+     * neighbor corners for each corner, 3 on average
      * */
-    val adjacent = PackedIntLists(size, 4)
+    val neighbors = PackedIntLists(size, 4)
 
     /**
-     * edges for each corner
-     *
-     * todo order them
+     * edges for each corner, 3 on average
      * */
     val edges = PackedIntLists(size, 4)
 }

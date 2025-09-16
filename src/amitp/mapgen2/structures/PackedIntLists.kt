@@ -2,12 +2,14 @@ package amitp.mapgen2.structures
 
 import me.anno.utils.InternalAPI
 import me.anno.utils.types.Booleans.toInt
+import org.apache.logging.log4j.LogManager
 import kotlin.math.max
 
 /**
  * Represents an Array<List<Int>>, with -1 being an invalid value.
  * Is much more memory friendly than Array<List<Int>>.
  *
+ * Be wary that if you underestimate initialCapacityPerValue, this collect gets really slow!
  * The order of the inserted items may change.
  * */
 class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
@@ -25,24 +27,34 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         clear()
     }
 
+    fun addUnique(index: Int, value: Int) {
+        if (value < 0 || contains(index, value)) return
+        add(index, value)
+    }
+
     fun add(index: Int, value: Int) {
-        val pos = offsets[index] + getSize(index)
+        val index0 = index
+        var index = index
+        var value = value
+        while (true) {
+            val pos = offsets[index] + getSize(index)
 
-        // check if next cell is free for end marker
-        if (pos + 1 >= values.size) grow()
+            // check if next cell is free for end marker
+            if (pos + 1 >= values.size) grow()
 
-        if (index + 1 < offsets.size &&
-            pos + 1 == offsets[index + 1]
-        ) {
-            // Need to move suffix forward (shift right until free space)
-            offsets[index + 1] = pos + 2
             val wouldBeOverridden = values[pos + 1]
-            add(index + 1, wouldBeOverridden)
-        }
 
-        // insert value and new end marker
-        values[pos] = value
-        values[pos + 1] = -1
+            // insert value and new end marker
+            values[pos] = value
+            values[pos + 1] = -1
+
+            index++
+            if (index < offsets.size && pos + 1 == offsets[index]) {
+                // Need to move suffix forward (shift right until free space)
+                offsets[index] = pos + 2
+                value = wouldBeOverridden
+            } else break
+        }
     }
 
     fun get(index: Int, index2: Int): Int {
@@ -77,8 +89,8 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         }
     }
 
-    fun getSize(row: Int): Int {
-        var pos = offsets[row]
+    fun getSize(index: Int): Int {
+        var pos = offsets[index]
         var count = 0
         while (values[pos] != -1) {
             count++
@@ -100,9 +112,24 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         values.fill(-1)
 
         // distribute blocks evenly
-        val initialCapacityPerValue = values.size / size
+        val factor = values.size.toLong().shl(32) / size
         for (row in 0 until size) {
-            offsets[row] = row * initialCapacityPerValue
+            offsets[row] = (row * factor).shr(32).toInt()
+        }
+    }
+
+    fun sortBy(index: Int, getAngle: GetAngle) {
+        val size = getSize(index)
+        val offset = offsets[index]
+        for (i in offset + 1 until offset + size) {
+            for (j in offset until i) { // j<i
+                val vi = values[i]
+                val vj = values[j]
+                if (getAngle.map(vj) > getAngle.map(vi)) { // swap
+                    values[j] = vi
+                    values[i] = vj
+                }
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 package amitp.mapgen2
 
-import amitp.mapgen2.structures.CenterList
+import amitp.mapgen2.structures.CellList
 
 enum class Biome {
 
@@ -28,12 +28,14 @@ enum class Biome {
     TROPICAL_RAIN_FOREST,
     TROPICAL_SEASONAL_FOREST,
     // grassland again,
-    SUBTROPICAL_DESERT
+    SUBTROPICAL_DESERT,
+
+    LAVA,
 
     ;
 
     companion object {
-        fun getBiome(p: CenterList, i: Int): Biome {
+        fun getBiome(p: CellList, i: Int): Biome {
             val elevation = p.getElevation(i)
             val moisture = p.getMoisture(i)
             return when {

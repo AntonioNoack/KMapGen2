@@ -2,7 +2,7 @@ package amitp.mapgen2.structures
 
 import amitp.mapgen2.Biome
 
-class CenterList(size: Int) : PointList(size) {
+class CellList(size: Int) : PointList(size) {
 
     private val biomes = ByteArray(size)
 
@@ -12,23 +12,17 @@ class CenterList(size: Int) : PointList(size) {
     }
 
     /**
-     * neighbor center indices for each center
-     *
-     * todo order them
+     * neighbor cell indices for each cell, 6 on average
      * */
     val neighbors = PackedIntLists(size, 8)
 
     /**
-     * corners for each center; not ordered
-     *
-     * todo order them, because who wouldn't want them ordered?
+     * corners for each cell, 6 on average
      * */
     val corners = PackedIntLists(size, 8)
 
     /**
-     * edge indices for each center
-     *
-     * todo order them
+     * edge indices for each cell, 6 on average
      * */
     val edges = PackedIntLists(size, 8)
 }

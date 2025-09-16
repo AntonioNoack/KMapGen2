@@ -12,6 +12,6 @@ The project is split into the following parts:
 
 - graphbuilder: generates a list of cells, edges and their connections to each other
 - islandshapes: given a normalized x/z coordinate, decide whether the position should be in water or on land
-- pointselector: for VoronoiGraphBuilder, decides how the cell centers are distributed
+- pointselector: for VoronoiGraphBuilder, decides how the cell cells are distributed
 - structures: data structures for storing the map, and helpers
 - 'main': how you primarily interface with this library
