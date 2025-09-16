@@ -4,6 +4,8 @@
       <root url="jar:///media/antonio/58CE075ECE0733B2/Users/Antonio/Documents/IdeaProjects/RemsEngine/out/artifacts/Universal/RemsEngine.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="file:///media/antonio/58CE075ECE0733B2/Users/Antonio/Documents/IdeaProjects/RemsEngine/Image/src" />
+    </SOURCES>
   </library>
 </component>

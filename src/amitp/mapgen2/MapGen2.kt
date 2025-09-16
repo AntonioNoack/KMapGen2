@@ -6,10 +6,12 @@ import amitp.mapgen2.islandshapes.IslandShape
 import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
 import amitp.mapgen2.structures.EdgeList
+import me.anno.maths.Maths.clamp
 import me.anno.utils.Clock
 import me.anno.utils.algorithms.Sortable
 import me.anno.utils.structures.arrays.IntArrayList
 import org.joml.Vector2f
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -41,13 +43,19 @@ object MapGen2 {
         assignBiomes(map.cells)
         clock.stop("Assign Biomes")
 
+        flattenLakes(map)
+        clock.stop("Flatten Lakes")
+
+        flattenBeaches(map)
+        clock.stop("Flatten Beaches")
+
         sortElementsByAngle(map)
         clock.stop("Sort by Angle")
 
         return map
     }
 
-    fun sortElementsByAngle(map: GeneratedMap){
+    fun sortElementsByAngle(map: GeneratedMap) {
         val cells = map.cells
         val corners = map.corners
         val edges = map.edges
@@ -83,13 +91,137 @@ object MapGen2 {
         }
     }
 
-    fun assignMoisture(graph: GeneratedMap, mapRandom: Random) {
-        calculateDownslopes(graph.corners)
-        calculateWatersheds(graph.corners)
-        createRivers(graph.corners, graph.edges, graph.cells.size, mapRandom)
-        assignCornerMoisture(graph.corners)
-        redistributeMoisture(graph.corners, landCorners(graph.corners))
-        assignPolygonMoisture(graph.cells, graph.corners)
+    fun assignMoisture(map: GeneratedMap, mapRandom: Random) {
+        calculateDownslopes(map.corners)
+        calculateWatersheds(map.corners)
+        createRivers(map.corners, map.edges, map.cells.size, mapRandom)
+        assignCornerMoisture(map.corners)
+        redistributeMoisture(map.corners, landCorners(map.corners))
+        assignPolygonMoisture(map.cells, map.corners)
+    }
+
+    fun flattenLakes(map: GeneratedMap) {
+        val cells = map.cells
+        val corners = map.corners
+
+        var genId = 10
+        val done = IntArray(cells.size)
+        val queue = IntArrayList()
+        val maxDeltaElevation = 0.02f // good measure???
+
+        for (i in 0 until cells.size) {
+
+            fun findLake(ci: Int, generation: Int, callback: (Int) -> Unit) {
+                if (done[ci] == generation) return
+                done[ci] = generation
+                callback(ci)
+
+                cells.neighbors.forEach(ci) { qi ->
+                    if (cells.getBiome(qi) == Biome.LAKE &&
+                        done[qi] != generation
+                    ) findLake(qi, generation, callback)
+                }
+            }
+
+            if (cells.getBiome(i) == Biome.LAKE && done[i] == 0) {
+                // we found a new lake -> flatten it
+                var minElevation = cells.getElevation(i)
+                findLake(i, genId++) { lakeCell ->
+                    minElevation = min(minElevation, cells.getElevation(lakeCell))
+                }
+                findLake(i, genId++) { lakeCell ->
+                    cells.setElevation(lakeCell, minElevation)
+                    cells.corners.forEach(lakeCell) { corner ->
+                        val prevElevation = 0f
+                        corners.setElevation(corner, minElevation)
+                        if (abs(prevElevation - minElevation) > maxDeltaElevation) {
+                            queue.add(corner)
+                        }
+                    }
+                }
+                flattenTerrainAroundCorners(map, queue, maxDeltaElevation, done)
+            }
+        }
+    }
+
+    fun flattenBeaches(map: GeneratedMap) {
+        val cells = map.cells
+        val corners = map.corners
+
+        val done = IntArray(cells.size)
+        val queue = IntArrayList()
+        val maxDeltaElevation = 0.17f // good measure???
+
+        for (i in 0 until cells.size) {
+            if (done[i] != 0) continue
+            if (cells.getBiome(i) == Biome.OCEAN) continue
+
+            cells.corners.forEach(i) { corner ->
+                if (corners.getElevation(corner) == 0f) {
+                    queue.add(corner)
+                }
+            }
+        }
+
+        flattenTerrainAroundCorners(map, queue, maxDeltaElevation, done)
+    }
+
+    /**
+     * this algorithm is a little broken, but it looks nice ^^
+     * */
+    fun flattenTerrainAroundCorners(
+        map: GeneratedMap, queue: IntArrayList,
+        maxDeltaElevation: Float, done: IntArray
+    ) {
+
+        val cells = map.cells
+        val corners = map.corners
+
+        // smooth the terrain around
+        while (queue.isNotEmpty()) {
+            val corner = queue.removeLast()
+            val elevation = corners.getElevation(corner)
+
+            corners.neighbors.forEach(corner) { neighbor ->
+                val prevElevation = corners.getElevation(neighbor)
+                val delta = prevElevation - elevation
+                if (abs(delta) > maxDeltaElevation) {
+                    var hasLake = false
+                    corners.cells.forEach(neighbor) { cellI ->
+                        val biome = cells.getBiome(cellI)
+                        if (biome == Biome.LAKE || biome == Biome.OCEAN) {
+                            hasLake = true
+                        }
+                    }
+                    if (!hasLake) {
+
+                        // fix elevation
+                        val newElevation = elevation + clamp(delta, -maxDeltaElevation, maxDeltaElevation)
+                        corners.setElevation(neighbor, newElevation)
+
+                        val delta = newElevation - prevElevation
+                        var anyCellChanged = false
+                        corners.cells.forEach(neighbor) { cellI ->
+                            // adjust elevation of bordering cells if they are not done yet
+                            if (done[cellI] < 9 && !cells.isOcean(cellI)) {
+                                val numCornersOnCell = cells.corners.getSize(cellI)
+                                if (numCornersOnCell > 0) {
+                                    val newElevationI = cells.getElevation(cellI) + delta / numCornersOnCell
+                                    cells.setElevation(cellI, newElevationI)
+                                    done[cellI]++
+                                    anyCellChanged = true
+                                } // else division by zero
+                            }
+                        }
+
+                        if (anyCellChanged) {
+                            // enqueue
+                            queue.add(neighbor)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun landCorners(corners: CornerList): IntArrayList {

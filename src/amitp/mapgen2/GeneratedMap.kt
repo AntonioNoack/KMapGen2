@@ -13,4 +13,5 @@ class GeneratedMap(
     val cells: CellList,
     val corners: CornerList,
     val edges: EdgeList,
+    val size: Float
 )

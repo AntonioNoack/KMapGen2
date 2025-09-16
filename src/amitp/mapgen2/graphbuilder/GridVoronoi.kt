@@ -24,7 +24,7 @@ import kotlin.math.*
 import kotlin.random.Random
 
 // todo this doesn't work perfectly yet
-class GridVoronoi(points: FloatArray) {
+class GridVoronoi(points: FloatArray, size: Float) {
 
     companion object {
         private val LOGGER = LogManager.getLogger(GridVoronoi::class)
@@ -68,7 +68,7 @@ class GridVoronoi(points: FloatArray) {
         debugShowIndices()
     }
 
-    val map = findEdges(points)
+    val map = findEdges(points, size)
 
     private fun debugShowIndices() {
         val image = BufferedImage(numPointsX, numPointsY, 1)
@@ -266,7 +266,7 @@ class GridVoronoi(points: FloatArray) {
         return CornersAndEdges(numCorners, cornerData, edges.size)
     }
 
-    private fun findEdges(points: FloatArray): GeneratedMap {
+    private fun findEdges(points: FloatArray, size: Float): GeneratedMap {
 
         val cells = CellList(numPoints)
         cells.setPoints(points)
@@ -286,7 +286,7 @@ class GridVoronoi(points: FloatArray) {
         cornerNeighbors(edges, corners)
         clock.stop("Corner-Neighbors")
 
-        return GeneratedMap(cells, corners, edges)
+        return GeneratedMap(cells, corners, edges, size)
     }
 
     private fun setCornerPositions(corners: CornerList, cornerData: IntArrayList) {

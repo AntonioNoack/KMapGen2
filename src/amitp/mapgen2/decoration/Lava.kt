@@ -15,7 +15,7 @@ object Lava {
      * */
     fun generateLava(
         map: GeneratedMap, random: Random,
-        volcanoProbability: Float = 1f,
+        volcanoProbability: Float = 0.35f,
         flowProbability: Float = 0.97f
     ) {
         val cells = map.cells
@@ -81,10 +81,15 @@ object Lava {
 
             // extrapolate height
             // decrease pool height
-            newHeight = newHeight * 2f - height
+            newHeight -= 0.1f * volcanoProbability
             cells.setElevation(c, newHeight)
             cells.corners.forEach(c) { corner ->
                 corners.setElevation(corner, newHeight)
+            }
+            cells.neighbors.forEach(c) { neighbor ->
+                if (cells.getBiome(neighbor) != Biome.LAVA) {
+                    cells.setBiome(neighbor, Biome.SCORCHED)
+                }
             }
         }
     }

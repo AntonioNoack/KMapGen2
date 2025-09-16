@@ -7,10 +7,14 @@ import amitp.mapgen2.graphbuilder.VoronoiGraphBuilder
 import amitp.mapgen2.islandshapes.PerlinIslandShape
 import amitp.mapgen2.pointselector.GridPointSelector
 import amitp.mapgen2.pointselector.RandomPointSelector
+import amitp.mapgen2.rasterizer.MapRasterizer
 import amitp.mapgen2.structures.CornerList
+import me.anno.image.raw.IntImage
 import me.anno.maths.Maths.clamp
 import me.anno.maths.Maths.pow
 import me.anno.utils.Clock
+import me.anno.utils.Color.r
+import me.anno.utils.OS
 import me.anno.utils.algorithms.ForLoop.forLoopSafely
 import org.joml.Vector2f
 import java.awt.BasicStroke
@@ -58,6 +62,27 @@ fun main() {
     generateObjFileFromCorners(map, mapSize)
     clock.stop("Create OBJ-File")
 
+    testBiomeRasterizer(map)
+    clock.stop("Rasterize Biomes")
+
+    testHeightRasterizer(map)
+    clock.stop("Rasterize Height")
+
+}
+
+fun testBiomeRasterizer(map: GeneratedMap) {
+    val biomes = MapRasterizer.rasterizeBiomes(map, 1f)
+    val colors = IntImage(biomes.width, biomes.height, false)
+    val biomeColors = Biome.entries.map { biomeColors[it]!!.rgb }
+    biomes.forEachPixel { x, y ->
+        colors.setRGB(x, y, biomeColors[biomes.getRGB(x, y).r()])
+    }
+    colors.write(OS.desktop.getChild("raster-biomes.png"))
+}
+
+fun testHeightRasterizer(map: GeneratedMap) {
+    MapRasterizer.rasterizeHeight(map, 1f)
+        .write(OS.desktop.getChild("raster-height.png"))
 }
 
 val home = System.getProperty("user.home")

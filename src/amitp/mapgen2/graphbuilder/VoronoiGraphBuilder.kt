@@ -29,7 +29,7 @@ class VoronoiGraphBuilder(
         val map = if (false) {
             // not yet working correctly,
             // is promising for performance though
-            GridVoronoi(points).map
+            GridVoronoi(points, size).map
         } else {
             val voronoi = Voronoi(points, size)
             buildGraph(points, voronoi, size)
@@ -184,7 +184,7 @@ class VoronoiGraphBuilder(
             }
         }
 
-        return GeneratedMap(cells, cornerList, edges)
+        return GeneratedMap(cells, cornerList, edges, size)
     }
 
 }
