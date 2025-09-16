@@ -5,6 +5,7 @@ import amitp.mapgen2.pointselector.PointSelector
 import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
 import amitp.mapgen2.structures.EdgeList
+import me.anno.maths.Maths.clamp
 import me.anno.maths.Packing.pack64
 import me.anno.maths.Packing.unpackHighFrom64
 import me.anno.maths.Packing.unpackLowFrom64
@@ -36,7 +37,7 @@ class VoronoiGraphBuilder(
         clock.stop("Create Graph")
         printStats(map)
 
-        improveCorners(map.cells, map.corners)
+        improveCorners(map.cells, map.corners, size)
         clock.stop("Improve Corners")
         return map
     }
@@ -68,7 +69,7 @@ class VoronoiGraphBuilder(
      * edges become longer. Long edges tend to become shorter. The
      * polygons tend to be more uniform after this step.
      * */
-    private fun improveCorners(cells: CellList, corners: CornerList) {
+    private fun improveCorners(cells: CellList, corners: CornerList, size: Float) {
         val newCorners = FloatArray(corners.size shl 1)
         for (q in 0 until corners.size) {
             if (corners.isBorder(q)) {
@@ -84,6 +85,9 @@ class VoronoiGraphBuilder(
                 newCorners[q * 2] = sumX / numTouches
                 newCorners[q * 2 + 1] = sumY / numTouches
             }
+        }
+        for (i in newCorners.indices) {
+            newCorners[i] = clamp(newCorners[i], 0f, size)
         }
         corners.setPoints(newCorners)
     }

@@ -9,6 +9,7 @@ import amitp.mapgen2.pointselector.GridPointSelector
 import amitp.mapgen2.pointselector.RandomPointSelector
 import amitp.mapgen2.structures.CornerList
 import me.anno.maths.Maths.clamp
+import me.anno.maths.Maths.pow
 import me.anno.utils.Clock
 import me.anno.utils.algorithms.ForLoop.forLoopSafely
 import org.joml.Vector2f
@@ -18,12 +19,11 @@ import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
-import kotlin.math.atan2
 import kotlin.random.Random
 
 fun main() {
 
-    val mapSize = 4000f
+    val mapSize = 1000f
     val numPoints = 10000
     val variant = 4284L
 
@@ -44,20 +44,67 @@ fun main() {
     Lava.generateLava(map, Random(variant))
     clock.stop("Generate Lava")
 
-    val home = System.getProperty("user.home")
-    ImageIO.write(renderBiomeMap(map, mapSize), "PNG", File(home, "Desktop/test_map.png"))
+    ImageIO.write(renderBiomeMap(map, mapSize), "PNG", File(desktop, "test_map.png"))
     clock.stop("Render BiomeMap")
 
-    ImageIO.write(renderHeightMap(map, mapSize.toInt()), "PNG", File(home, "Desktop/test_height.png"))
+    ImageIO.write(renderHeightMap(map, mapSize.toInt()), "PNG", File(desktop, "test_height.png"))
     clock.stop("Render HeightMap")
 
-    if (false) {// disabled, because too slow at the moment
-        val noisyEdges = NoisyEdges.generateNoisyEdges(map, Random(variant))
-        clock.stop("Generate NoisyEdges")
-        ImageIO.write(renderNoisyEdges(noisyEdges, mapSize), "PNG", File(home, "Desktop/test_edges.png"))
-        clock.stop("Render NoisyEdges")
+    val noisyEdges = NoisyEdges.generateNoisyEdges(map, Random(variant))
+    clock.stop("Generate NoisyEdges")
+    ImageIO.write(renderNoisyEdges(noisyEdges, mapSize), "PNG", File(desktop, "test_edges.png"))
+    clock.stop("Render NoisyEdges")
+
+    generateObjFileFromCorners(map, mapSize)
+    clock.stop("Create OBJ-File")
+
+}
+
+val home = System.getProperty("user.home")
+val desktop = File(home, "Desktop")
+
+fun generateObjFileFromCorners(map: GeneratedMap, mapSize: Float) {
+    val corners = map.corners
+    val cells = map.cells
+
+    val obj = StringBuilder()
+    val mtl = StringBuilder()
+
+    mtl.append("# MTL File\n")
+    for ((biome, color) in biomeColors) {
+        mtl.append("\nnewmtl ").append(biome.name).append('\n')
+            .append("Kd ").append(color.red / 255f).append(' ')
+            .append(color.green / 255f).append(' ')
+            .append(color.blue / 255f).append('\n')
     }
 
+    obj.append("# Wavefront obj\n")
+        .append("mtllib map.mtl\n")
+    var vi = 1
+    val scaleY = mapSize * 0.05f
+    var lastBiome: Biome? = null
+    for (c in 0 until cells.size) {
+        val biome = cells.getBiome(c)
+        if (biome != lastBiome) {
+            obj.append("usemtl ").append(biome.name).append('\n')
+            lastBiome = biome
+        }
+        val numCorners = cells.corners.forEach(c) { q ->
+            obj.append("v ").append(corners.getPointX(q))
+                .append(' ').append(pow(corners.getElevation(q), 3f) * scaleY)
+                .append(' ').append(corners.getPointY(q))
+                .append('\n')
+        }
+        obj.append("f")
+        for (i in 0 until numCorners) {
+            obj.append(' ').append(vi + i)
+        }
+        obj.append('\n')
+        vi += numCorners
+    }
+
+    File(desktop, "map.mtl").writeText(mtl.toString())
+    File(desktop, "map.obj").writeText(obj.toString())
 }
 
 fun CornerList.getOrNull(i: Int): Vector2f? {
@@ -65,8 +112,7 @@ fun CornerList.getOrNull(i: Int): Vector2f? {
 }
 
 fun renderNoisyEdges(noisyEdges: NoisyEdges, mapSize: Float): BufferedImage {
-    val scale = 10f
-    val img = BufferedImage((mapSize * scale).toInt(), (mapSize * scale).toInt(), BufferedImage.TYPE_INT_ARGB)
+    val img = BufferedImage(mapSize.toInt(), mapSize.toInt(), BufferedImage.TYPE_INT_ARGB)
     val g = img.createGraphics()
 
     // Optional: anti-aliasing
@@ -82,18 +128,14 @@ fun renderNoisyEdges(noisyEdges: NoisyEdges, mapSize: Float): BufferedImage {
     for (i in 1 until offsets.size) {
         val i0 = offsets[i - 1]
         val i1 = offsets[i]
-        if (i1 - i0 > 100) {
-            println("Too long segment! $i0-$i1")
-            continue
-        }
 
         forLoopSafely(i1 - i0 - 2, 2) { di ->
             val i = i0 + di
             g.drawLine(
-                (points[i] * scale).toInt(),
-                (points[i + 1] * scale).toInt(),
-                (points[i + 2] * scale).toInt(),
-                (points[i + 3] * scale).toInt()
+                points[i].toInt(),
+                points[i + 1].toInt(),
+                points[i + 2].toInt(),
+                points[i + 3].toInt()
             )
         }
     }
@@ -125,34 +167,27 @@ fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
 
     // println("Cells: ${map.cells!!.size}")
     val cells = map.cells
+    val xs = IntArray(16)
+    val ys = IntArray(16)
     for (i in 0 until cells.size) {
         val biomeColor = biomeColors[cells.getBiome(i)] ?: Color.LIGHT_GRAY
         g.color = biomeColor
 
-        val corners1 = ArrayList<Vector2f>()
+        var n = 0
         cells.corners.forEach(i) { c ->
-            corners1.add(corners.getOrNull(c)!!)
+            xs[n] = corners.getPointX(c).toInt()
+            ys[n] = corners.getPointY(c).toInt()
+            n++
         }
 
         // Skip cells with < 3 corners (degenerate)
-        if (corners1.size < 3) continue
-        val cx = corners1.map { it.x }.average()
-        val cy = corners1.map { it.y }.average()
+        if (n < 3) continue
 
-        val sortedCorners = corners1.sortedBy {
-            val dx = it.x - cx
-            val dy = it.y - cy
-            atan2(dy, dx)
-        }
-
-        val xPoints = sortedCorners.map { it.x.toInt() }.toIntArray()
-        val yPoints = sortedCorners.map { it.y.toInt() }.toIntArray()
-
-        g.fillPolygon(xPoints, yPoints, corners1.size)
+        g.fillPolygon(xs, ys, n)
 
         // Optional: draw edges in black for visibility
         g.color = Color.BLACK
-        g.drawPolygon(xPoints, yPoints, corners1.size)
+        g.drawPolygon(xs, ys, n)
     }
 
     g.color = Color.DARK_GRAY
@@ -199,37 +234,28 @@ fun renderHeightMap(map: GeneratedMap, size: Int): BufferedImage {
 
     val cells = map.cells
     val corners = map.corners
+    val xs = IntArray(16)
+    val ys = IntArray(16)
+    val colors = Array(256) { Color(it, it, it) }
     for (i in 0 until cells.size) {
 
         // Compute polygon centroid
-        val corners1 = ArrayList<Vector2f>()
         var avgElevation = 0f
+        var n = 0
         cells.corners.forEach(i) { c ->
-            corners1.add(corners.getOrNull(c)!!)
+            xs[n] = corners.getPointX(c).toInt()
+            ys[n] = corners.getPointY(c).toInt()
             avgElevation += corners.getElevation(c)
+            n++
         }
-        if (corners1.size < 3) continue
-        val cx = corners1.map { it.x }.average()
-        val cy = corners1.map { it.y }.average()
-
-        // Sort corners clockwise
-        val sortedCorners = corners1.sortedBy {
-            val dx = it.x - cx
-            val dy = it.y - cy
-            atan2(dy, dx)
-        }
+        if (n < 3) continue
 
         // Average elevation for this polygon
-        avgElevation /= corners1.size
-        avgElevation = clamp(avgElevation)
+        avgElevation = clamp(avgElevation / n)
+        if (cells.isOcean(i) || cells.isCoast(i)) continue
 
-        val gray = if (cells.isOcean(i) || cells.isCoast(i)) 12
-        else (avgElevation * 255).toInt().coerceIn(0, 255)
-        g.color = Color(gray, gray, gray)
-
-        val xPoints = sortedCorners.map { it.x.toInt() }.toIntArray()
-        val yPoints = sortedCorners.map { it.y.toInt() }.toIntArray()
-        g.fillPolygon(xPoints, yPoints, sortedCorners.size)
+        g.color = colors[(avgElevation * 255).toInt()]
+        g.fillPolygon(xs, ys, n)
     }
 
     g.dispose()
