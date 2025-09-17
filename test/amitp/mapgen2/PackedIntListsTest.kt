@@ -15,9 +15,9 @@ class PackedIntListsTest {
         lists.add(0, 20)
         lists.add(1, 99)
 
-        assertEquals(10, lists.get(0, 0))
-        assertEquals(20, lists.get(0, 1))
-        assertEquals(99, lists.get(1, 0))
+        assertEquals(10, lists[0, 0])
+        assertEquals(20, lists[0, 1])
+        assertEquals(99, lists[1, 0])
         assertEquals(2, lists.getSize(0))
         assertEquals(1, lists.getSize(1))
         assertEquals(0, lists.getSize(2))
@@ -61,7 +61,7 @@ class PackedIntListsTest {
             lists.add(0, i)
         }
         assertEquals(50, lists.getSize(0))
-        assertEquals(42, lists.get(0, 42))
+        assertEquals(42, lists[0, 42])
     }
 
     @Test
@@ -69,7 +69,7 @@ class PackedIntListsTest {
         val lists = PackedIntLists(size = 1, initialCapacityPerValue = 1)
         lists.add(0, 7)
         assertThrows<IndexOutOfBoundsException> {
-            lists.get(0, 1)
+            lists[0, 1]
         }
     }
 

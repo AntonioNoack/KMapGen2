@@ -14,7 +14,8 @@ import org.apache.logging.log4j.LogManager
 import speiger.primitivecollections.LongToIntHashMap
 
 class VoronoiGraphBuilder(
-    val pointSelector: PointSelector
+    val pointSelector: PointSelector,
+    val useExperimentalVoronoi: Boolean = false
 ) : GraphBuilder {
 
     companion object {
@@ -26,9 +27,7 @@ class VoronoiGraphBuilder(
         val points = pointSelector.select(size, numCells, seed)
         clock.stop("Generate Points")
 
-        val map = if (false) {
-            // not yet working correctly,
-            // is promising for performance though
+        val map = if (useExperimentalVoronoi) {
             GridVoronoi(points, size).map
         } else {
             val voronoi = Voronoi(points, size)

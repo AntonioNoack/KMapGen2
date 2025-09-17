@@ -2,7 +2,6 @@ package amitp.mapgen2.structures
 
 import me.anno.utils.InternalAPI
 import me.anno.utils.types.Booleans.toInt
-import org.apache.logging.log4j.LogManager
 import kotlin.math.max
 
 /**
@@ -33,7 +32,6 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
     }
 
     fun add(index: Int, value: Int) {
-        val index0 = index
         var index = index
         var value = value
         while (true) {
@@ -57,7 +55,7 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         }
     }
 
-    fun get(index: Int, index2: Int): Int {
+    operator fun get(index: Int, index2: Int): Int {
         var pos = offsets[index]
         var count = 0
         while (values[pos] != -1) {
@@ -106,19 +104,33 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         this.values = newValues
     }
 
+    /**
+     * Clears all values for all indices
+     * */
     fun clear() {
 
         // mark values as invalid
         values.fill(-1)
 
         // distribute blocks evenly
-        val factor = values.size.toLong().shl(32) / size
+        val factor = values.size.toLong().shl(32) / max(size, 1)
         for (row in 0 until size) {
             offsets[row] = (row * factor).shr(32).toInt()
         }
     }
 
-    fun sortBy(index: Int, getAngle: GetAngle) {
+    /**
+     * Clears all values for this index
+     * */
+    fun clear(index: Int) {
+        val size = getSize(index)
+        val offset = offsets[index]
+        for (i in 0 until size) {
+            values[offset + i] = -1
+        }
+    }
+
+    fun sortBy(index: Int, getAngle: GetFloat) {
         val size = getSize(index)
         val offset = offsets[index]
         for (i in offset + 1 until offset + size) {

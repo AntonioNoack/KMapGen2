@@ -1,11 +1,15 @@
 <component name="libraryTable">
   <library name="RemsEngine">
     <CLASSES>
-      <root url="jar:///media/antonio/58CE075ECE0733B2/Users/Antonio/Documents/IdeaProjects/RemsEngine/out/artifacts/Universal/RemsEngine.jar!/" />
+      <root url="jar:////media/antonio/58CE075ECE0733B2/Users/Antonio/Documents/IdeaProjects/RemsEngine/out/artifacts/Universal/RemsEngine.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES>
-      <root url="file:///media/antonio/58CE075ECE0733B2/Users/Antonio/Documents/IdeaProjects/RemsEngine/Image/src" />
+      <root url="file:////media/antonio/58CE075ECE0733B2/Users/Antonio/Documents/IdeaProjects/RemsEngine/Image/src" />
+      <root url="file://$PROJECT_DIR$/../RemsEngine/src" />
+      <root url="file://$PROJECT_DIR$/../RemsEngine/src" />
+      <root url="file://$PROJECT_DIR$/../RemsEngine/src" />
+      <root url="file://$PROJECT_DIR$/../RemsEngine/src" />
     </SOURCES>
   </library>
 </component>

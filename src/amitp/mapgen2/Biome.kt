@@ -2,35 +2,48 @@ package amitp.mapgen2
 
 import amitp.mapgen2.structures.CellList
 
-enum class Biome {
+enum class Biome(val debugColor: Int) {
 
     // first water types
-    OCEAN,
-    BEACH,
-    MARSH,
-    ICE,
-    LAKE,
+    OCEAN(0x006994),
+    BEACH(0xeed6af),
+    MARSH(0x2f4f4f),
+    ICE(0xb4dcff),
+    LAKE(0x1c6ba0),
 
-    SNOW,
-    TUNDRA,
-    BARE,
-    SCORCHED,
+    SNOW(0xfffafa),
+    TUNDRA(0xb0c4de),
+    BARE(0x8b8989),
+    SCORCHED(0x505050),
 
-    TAIGA,
-    SHRUBLAND,
-    TEMPERATE_DESERT,
+    TAIGA(0x006400),
+    SHRUBLAND(0xa0522d),
+    TEMPERATE_DESERT(0xd2b48c),
 
-    TEMPERATE_RAIN_FOREST,
-    TEMPERATE_DECIDUOUS_FOREST,
-    GRASSLAND,
+    TEMPERATE_RAIN_FOREST(0x008000),
+    TEMPERATE_DECIDUOUS_FOREST(0x228b22),
+    GRASSLAND(0x7cfc00),
     // temperate desert again
 
-    TROPICAL_RAIN_FOREST,
-    TROPICAL_SEASONAL_FOREST,
-    // grassland again,
-    SUBTROPICAL_DESERT,
+    TROPICAL_RAIN_FOREST(0x006400),
+    TROPICAL_SEASONAL_FOREST(0x228b22),
 
-    LAVA,
+    // grassland again,
+    SUBTROPICAL_DESERT(0xedc9af),
+
+    // lava-lake biome, occurs on the inside of volcanoes
+    LAVA(0xff9600),
+
+    // pseudo-biomes
+    ROAD(0x555555),
+    RIVER(0x3399ff),
+
+    // placed when roads overlaps water/lava
+    RIVER_BRIDGE(0x6888a3),
+    LAVA_BRIDGE(0xa37468),
+
+    // placed when lava overlaps water
+    OBSIDIAN(0x58249c),
 
     ;
 

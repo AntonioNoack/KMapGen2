@@ -396,6 +396,8 @@ object MapGen2 {
     }
 
     fun createRivers(corners: CornerList, edges: EdgeList, numPoints: Int, mapRandom: Random) {
+        if (corners.size == 0) return
+
         val maxAttempts = numPoints / 10
         repeat(maxAttempts) {
             val q = mapRandom.nextInt(corners.size)

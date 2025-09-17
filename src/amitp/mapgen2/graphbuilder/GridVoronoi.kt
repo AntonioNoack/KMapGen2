@@ -1,12 +1,11 @@
 package amitp.mapgen2.graphbuilder
 
 import amitp.mapgen2.GeneratedMap
-import amitp.mapgen2.graphbuilder.Voronoi.Triangle.Companion.circumcell
+import amitp.mapgen2.graphbuilder.Voronoi.Triangle.Companion.circumcenter
 import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
 import amitp.mapgen2.structures.EdgeList
-import me.anno.maths.Maths.clamp
-import me.anno.maths.Maths.median
+import me.anno.maths.Maths.sq
 import me.anno.maths.Packing.pack64
 import me.anno.utils.Clock
 import me.anno.utils.OS.home
@@ -20,7 +19,9 @@ import speiger.primitivecollections.LongToIntHashMap
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
-import kotlin.math.*
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 // todo this doesn't work perfectly yet
@@ -46,8 +47,11 @@ class GridVoronoi(points: FloatArray, size: Float) {
         return bounds
     }
 
-    private val numPointsX = sqrt(numPoints * 10f).toInt()
-    private val numPointsY = (numPoints * 10) / numPointsX
+    val fillRadius = 5
+    val scale = 40 // at max (fillRadius + 1.5)²
+
+    private val numPointsX = sqrt(numPoints * scale.toFloat()).toInt()
+    private val numPointsY = (numPoints * scale) / numPointsX
     private val gridSize = numPointsX * numPointsY
 
     private val bounds = findBounds(points)
@@ -99,7 +103,6 @@ class GridVoronoi(points: FloatArray, size: Float) {
         println("min,inv: $minX,$minY,$invX,$invY")
         val maxMinDist = 1f / (invX * invX) + 1f / (invY * invY)
 
-        val radius = 5
         forLoopSafely(points.size, 2) { pi ->
             val px = points[pi]
             val py = points[pi + 1]
@@ -107,11 +110,11 @@ class GridVoronoi(points: FloatArray, size: Float) {
             val gx = ((px - minX) * invX).toInt()
             val gy = ((py - minY) * invY).toInt()
 
-            val minXi = max(0, gx - radius)
-            val maxXi = min(gx + radius, numPointsX - 1)
+            val minXi = max(0, gx - fillRadius)
+            val maxXi = min(gx + fillRadius, numPointsX - 1)
 
-            val minYi = max(0, gy - radius)
-            val maxYi = min(gy + radius, numPointsY - 1)
+            val minYi = max(0, gy - fillRadius)
+            val maxYi = min(gy + fillRadius, numPointsY - 1)
 
             var added = false
             var minDist1 = Float.POSITIVE_INFINITY
@@ -152,68 +155,24 @@ class GridVoronoi(points: FloatArray, size: Float) {
         return pack64(min(a, b), max(a, b))
     }
 
-    data class CornersAndEdges(
-        val numCorners: Int,
-        val cornerData: IntArrayList,
-        val numEdges: Int
-    )
 
-    private fun findCornersAndEdges(points: FloatArray): CornersAndEdges {
-        val cornerData = IntArrayList(numPoints * 4)
-        val edges = HashSet<Long>(numPoints * 4) // todo bug: LongHashSet is 10x slower than HashSet<Long>
+    private fun findCornersAndEdges(points: FloatArray, cells: CellList): CornersAndEdges {
+        val circleGrid = CircleGrid(numPointsX, numPointsY, bounds)
 
-        var numCorners = 0
-        val cornerGrid = IntArray(gridSize)
-        cornerGrid.fill(-1)
+        forLoopSafely(points.size, 2) { i ->
+            circleGrid.addCell(points[i], points[i + 1])
+        }
 
         val tmp = Vector2f()
-
-        val minX = bounds.minX
-        val minY = bounds.minY
-        val invX = numPointsX / max(bounds.deltaX, 1e-38f)
-        val invY = numPointsY / max(bounds.deltaY, 1e-38f)
-
-        fun onCornerMinMaxMedian(min: Int, median: Int, max: Int) {
-            if (min == 50109) {
-                println("adding($min,$median,$max)")
-            }
-
-            val (px, py) = circumcell(
+        fun onCorner(min: Int, median: Int, max: Int) {
+            val (px, py) = circumcenter(
                 points[min * 2], points[min * 2 + 1],
                 points[median * 2], points[median * 2 + 1],
                 points[max * 2], points[max * 2 + 1], tmp
             )
 
-            val gx = (px - minX) * invX
-            val gy = (py - minY) * invY
-
-            // todo check the surrounding, not just one cell
-            val gxi = clamp(round(gx).toInt(), 0, numPointsX - 1)
-            val gyi = clamp(round(gy).toInt(), 0, numPointsY - 1)
-            val cellIndex = gxi + gyi * numPointsX
-
-            var cornerIndex = cornerGrid[cellIndex]
-            if (cornerIndex < 0) {
-                cornerIndex = numCorners++
-                cornerGrid[cellIndex] = cornerIndex
-            }
-
-            cornerData.add(min, median, max)
-            cornerData.add(cornerIndex, px.toRawBits(), py.toRawBits())
-
-            edges.add(key(min, median))
-            edges.add(key(median, max))
-            edges.add(key(max, min))
-        }
-
-        fun onCorner(ai: Int, bi: Int, ci: Int) {
-            if (ai == bi || ai == ci || bi == ci) return
-            if (ai == -1 || bi == -1 || ci == -1) return
-
-            val min = min(ai, min(bi, ci))
-            val max = max(ai, max(bi, ci))
-            val median = median(ai, bi, ci)
-            onCornerMinMaxMedian(min, median, max)
+            val radiusSq = sq(points[min * 2] - px) + sq(points[min * 2 + 1] - py)
+            circleGrid.addCircle(px, py, radiusSq, min, median, max)
         }
 
         val unique = IntArrayList()
@@ -233,23 +192,12 @@ class GridVoronoi(points: FloatArray, size: Float) {
                 if (ci != -1 && ci !in unique) unique.add(ci)
                 if (di != -1 && di !in unique) unique.add(di)
 
-                if (unique.size > 2) {
-                    if (abs(gridX[xi] - 2009) < 20f &&
-                        abs(gridY[yi] - 2304) < 20f
-                    ) {
-                        println("Corner[#${cornerData.size / 3},$xi,$yi] -> $unique")
-                    }
-                }
-
                 when (unique.size) {
                     3 -> {
                         val i0 = unique[0]
                         val i1 = unique[1]
                         val i2 = unique[2]
-                        val min = min(i0, min(i1, i2))
-                        val max = max(i0, max(i1, i2))
-                        val median = median(i0, i1, i2)
-                        onCornerMinMaxMedian(min, median, max)
+                        onCorner(i0, i1, i2)
                     }
                     4 -> {
                         onCorner(ai, bi, ci)
@@ -262,8 +210,8 @@ class GridVoronoi(points: FloatArray, size: Float) {
             }
         }
 
-        clock.stop("Corners & Unique Edges")
-        return CornersAndEdges(numCorners, cornerData, edges.size)
+        clock.stop("Fill Circles")
+        return circleGrid.extractCornersAndEdges(cells, clock)
     }
 
     private fun findEdges(points: FloatArray, size: Float): GeneratedMap {
@@ -271,17 +219,7 @@ class GridVoronoi(points: FloatArray, size: Float) {
         val cells = CellList(numPoints)
         cells.setPoints(points)
 
-        val (numCorners, cornerData, numEdges) = findCornersAndEdges(points)
-        val corners = CornerList(numCorners)
-
-        setCornerPositions(corners, cornerData)
-        clock.stop("Corner Positions")
-
-        val edges = cornerEdges(numEdges, cells, corners, cornerData)
-        clock.stop("Corner Edges")
-
-        cornerVertices(cells, corners, cornerData)
-        clock.stop("Corner Vertices")
+        val (corners, edges) = findCornersAndEdges(points, cells)
 
         cornerNeighbors(edges, corners)
         clock.stop("Corner-Neighbors")
@@ -310,11 +248,11 @@ class GridVoronoi(points: FloatArray, size: Float) {
     }
 
     private fun cornerEdges(
-        numEdges: Int, cells: CellList,
+        edgeData: IntArrayList, cells: CellList,
         corners: CornerList, cornerData: IntArrayList
     ): EdgeList {
         val doneEdges = LongToIntHashMap(-1)
-        val edges = EdgeList(numEdges)
+        val edges = EdgeList(edgeData.size)
         var edge = 0
 
         fun addEdge(ai: Int, bi: Int, cornerIndex: Int) {
