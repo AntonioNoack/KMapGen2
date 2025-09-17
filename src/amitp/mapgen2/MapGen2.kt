@@ -31,7 +31,7 @@ object MapGen2 {
         val mapRandom = Random(variant)
 
         val clock = Clock("MapGen2")
-        val map = generateMap(graphBuilder, numPoints, mapRandom, size)
+        val map = buildGraph(graphBuilder, numPoints, mapRandom, size)
         clock.stop("Build Graph")
 
         assignElevations(islandShape, map, size)
@@ -70,10 +70,8 @@ object MapGen2 {
         // edges don't store any references
     }
 
-    fun generateMap(
-        graphBuilder: GraphBuilder, numPoints: Int,
-        mapRandom: Random, size: Float,
-    ): GeneratedMap = graphBuilder.buildGraph(size, numPoints, mapRandom.nextLong())
+    fun buildGraph(graphBuilder: GraphBuilder, numPoints: Int, mapRandom: Random, size: Float): GeneratedMap =
+        graphBuilder.buildGraph(size, numPoints, mapRandom.nextLong())
 
     fun assignElevations(islandShape: IslandShape, graph: GeneratedMap, size: Float) {
         assignCornerElevations(islandShape, graph.corners, size)
