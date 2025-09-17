@@ -43,7 +43,7 @@ object MapGen2 {
         assignBiomes(map.cells)
         clock.stop("Assign Biomes")
 
-        flattenLakes(map)
+        flattenLakes(map, Biome.LAKE, 0.02f)
         clock.stop("Flatten Lakes")
 
         flattenBeaches(map)
@@ -98,14 +98,16 @@ object MapGen2 {
         assignPolygonMoisture(map.cells, map.corners)
     }
 
-    fun flattenLakes(map: GeneratedMap) {
+    fun flattenLakes(
+        map: GeneratedMap, lakeBiome: Biome,
+        maxDeltaElevation: Float
+    ) {
         val cells = map.cells
         val corners = map.corners
 
         var genId = 10
         val done = IntArray(cells.size)
         val queue = IntArrayList()
-        val maxDeltaElevation = 0.02f // good measure???
 
         for (i in 0 until cells.size) {
 
@@ -115,13 +117,13 @@ object MapGen2 {
                 callback(ci)
 
                 cells.neighbors.forEach(ci) { qi ->
-                    if (cells.getBiome(qi) == Biome.LAKE &&
+                    if (cells.getBiome(qi) == lakeBiome &&
                         done[qi] != generation
                     ) findLake(qi, generation, callback)
                 }
             }
 
-            if (cells.getBiome(i) == Biome.LAKE && done[i] == 0) {
+            if (cells.getBiome(i) == lakeBiome && done[i] == 0) {
                 // we found a new lake -> flatten it
                 var minElevation = cells.getElevation(i)
                 findLake(i, genId++) { lakeCell ->
@@ -187,9 +189,10 @@ object MapGen2 {
                     var hasLake = false
                     corners.cells.forEach(neighbor) { cellI ->
                         val biome = cells.getBiome(cellI)
-                        if (biome == Biome.LAKE || biome == Biome.OCEAN) {
-                            hasLake = true
-                        }
+                        if (biome == Biome.LAKE ||
+                            biome == Biome.LAVA ||
+                            biome == Biome.OCEAN
+                        ) hasLake = true
                     }
                     if (!hasLake) {
 
