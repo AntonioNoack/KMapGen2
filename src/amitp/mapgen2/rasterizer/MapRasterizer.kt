@@ -108,7 +108,7 @@ object MapRasterizer {
                 else -> Biome.ROAD
             }
         }) { edge ->
-            map.edges.hasRoad(edge)
+            map.edges.isRoad(edge)
         }
     }
 

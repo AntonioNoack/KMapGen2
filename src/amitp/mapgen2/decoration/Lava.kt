@@ -2,7 +2,8 @@ package amitp.mapgen2.decoration
 
 import amitp.mapgen2.Biome
 import amitp.mapgen2.GeneratedMap
-import amitp.mapgen2.MapGen2
+import amitp.mapgen2.MapGen2.flattenLakes
+import amitp.mapgen2.MapGen2.flattenLines
 import me.anno.utils.structures.arrays.IntArrayList
 import kotlin.math.min
 import kotlin.random.Random
@@ -94,6 +95,7 @@ object Lava {
             }
         }
 
-        MapGen2.flattenLakes(map, Biome.LAVA, 1e3f)
+        flattenLakes(map, Biome.LAVA, 1e3f)
+        flattenLines(map, false) { edge -> map.edges.hasLava(edge) }
     }
 }

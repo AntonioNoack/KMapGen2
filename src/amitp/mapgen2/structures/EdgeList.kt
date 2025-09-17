@@ -34,7 +34,7 @@ class EdgeList(val size: Int) {
         flags[index] = (flags[index].toInt() or FLAG_RIVER).toByte()
     }
 
-    fun hasRoad(index: Int): Boolean = flags[index].toInt().hasFlag(FLAG_ROAD)
+    fun isRoad(index: Int): Boolean = flags[index].toInt().hasFlag(FLAG_ROAD)
     fun setRoad(index: Int) {
         flags[index] = (flags[index].toInt() or FLAG_ROAD).toByte()
     }

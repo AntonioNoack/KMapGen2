@@ -56,7 +56,7 @@ fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
     g.color = Color.DARK_GRAY
     g.stroke = BasicStroke(3f)
     for (edgeIndex in 0 until edges.size) {
-        if (edges.hasRoad(edgeIndex)) {
+        if (edges.isRoad(edgeIndex)) {
             val v0 = corners.getOrNull(edges.getCornerA(edgeIndex)) ?: continue
             val v1 = corners.getOrNull(edges.getCornerB(edgeIndex)) ?: continue
             g.drawLine(v0.x.toInt(), v0.y.toInt(), v1.x.toInt(), v1.y.toInt())

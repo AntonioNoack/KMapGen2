@@ -7,10 +7,12 @@ import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
 import amitp.mapgen2.structures.EdgeList
 import me.anno.maths.Maths.clamp
+import me.anno.maths.Maths.mix
 import me.anno.utils.Clock
 import me.anno.utils.algorithms.Sortable
 import me.anno.utils.structures.arrays.IntArrayList
 import org.joml.Vector2f
+import speiger.primitivecollections.callbacks.IntPredicate
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -48,6 +50,9 @@ object MapGen2 {
 
         flattenBeaches(map)
         clock.stop("Flatten Beaches")
+
+        flattenLines(map, true) { edge -> map.edges.hasRiver(edge) }
+        clock.stop("Flatten Rivers")
 
         sortElementsByAngle(map)
         clock.stop("Sort by Angle")
@@ -399,7 +404,7 @@ object MapGen2 {
     fun createRivers(corners: CornerList, edges: EdgeList, numPoints: Int, mapRandom: Random) {
         if (corners.size == 0) return
 
-        val maxAttempts = numPoints / 10
+        val maxAttempts = numPoints / 30
         repeat(maxAttempts) {
             val q = mapRandom.nextInt(corners.size)
             // Skip unsuitable corners
@@ -412,7 +417,7 @@ object MapGen2 {
             while (!corners.isCoast(current) && !corners.isOcean(current)) {
                 if (current == corners.getDownslope(current)) break // stuck
 
-                val edge = lookupEdgeFromCorner(corners, current, corners.getDownslope(current), edges)
+                val edge = findEdgeFromCorners(corners, current, corners.getDownslope(current), edges)
                 if (edge != -1) {
                     edges.setRiver(edge)
                     corners.incRiverFlowStrength(current)
@@ -477,11 +482,11 @@ object MapGen2 {
         }
     }
 
-    fun lookupEdgeFromCorner(corners: CornerList, q: Int, sIndex: Int, edges: EdgeList): Int {
-        corners.edges.forEach(q) { edgeIndex ->
-            val v0 = edges.getCornerA(edgeIndex)
-            val v1 = edges.getCornerB(edgeIndex)
-            if (v0 == sIndex || v1 == sIndex) return edgeIndex
+    fun findEdgeFromCorners(corners: CornerList, cornerA: Int, cornerB: Int, edges: EdgeList): Int {
+        corners.edges.forEach(cornerA) { edge ->
+            val v0 = edges.getCornerA(edge)
+            val v1 = edges.getCornerB(edge)
+            if (v0 == cornerB || v1 == cornerB) return edge
         }
         return -1
     }
@@ -516,6 +521,66 @@ object MapGen2 {
         val invLast = 1f / max(sorted.lastIndex, 1)
         for (i in 0 until sorted.size) {
             corners.setMoisture(sorted[i], i * invLast)
+        }
+    }
+
+    fun hasRivers(map: GeneratedMap, corner: Int): Boolean {
+        map.corners.edges.forEach(corner) { edge ->
+            if (map.edges.hasRiver(edge)) return false
+        }
+        return true
+    }
+
+    fun flattenLines(map: GeneratedMap, allowChangingRivers: Boolean, filter: IntPredicate) {
+        val roads = IntArrayList()
+        val edges = map.edges
+        for (edge in 0 until edges.size) {
+            val v0 = edges.getCornerA(edge)
+            val v1 = edges.getCornerB(edge)
+            if (v0 >= 0 && v1 >= 0 && filter.test(edge)) {
+                if (!allowChangingRivers) {
+                    // todo this seems incorrect... roads aren't flattened as much as I'd expect :/
+                    if (hasRivers(map, v0) || hasRivers(map, v1)) {
+                        continue
+                    }
+                }
+                roads.add(edge)
+            }
+        }
+        val numIterations = 10
+        val corners = map.corners
+        repeat(numIterations) {
+            for (j in roads.indices) {
+                val road = roads[j]
+                val v0 = edges.getCornerA(road)
+                val v1 = edges.getCornerB(road)
+                val h0 = corners.getElevation(v0)
+                val h1 = corners.getElevation(v1)
+                changeCornerHeight(map, v0, mix(h0, h1, 0.25f))
+                changeCornerHeight(map, v1, mix(h0, h1, 0.75f))
+            }
+        }
+    }
+
+    fun changeCornerHeight(map: GeneratedMap, corner: Int, newHeight: Float) {
+        val cells = map.cells
+        val corners = map.corners
+
+        val delta = newHeight - corners.getElevation(corner)
+        corners.setElevation(corner, newHeight)
+
+        corners.cells.forEach(corner) { cell ->
+            val biome = cells.getBiome(cell)
+            when (biome) {
+                Biome.LAKE, Biome.OCEAN, Biome.LAVA -> {}
+                else -> {
+                    val numCorners = cells.corners.getSize(cell)
+                    if (numCorners > 0) {
+                        val cellHeight = cells.getElevation(cell)
+                        cells.setElevation(cell, cellHeight + delta / numCorners)
+                    }
+                }
+            }
         }
     }
 
