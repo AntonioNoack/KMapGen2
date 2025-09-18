@@ -39,7 +39,7 @@ fun main() {
     val map = MapGen2.generate(
         mapSize,
         PerlinIslandShape(8541),
-        VoronoiGraphBuilder(points, false),
+        VoronoiGraphBuilder(points, true),
         numPoints, variant
     )
     clock.stop("Generating Map")

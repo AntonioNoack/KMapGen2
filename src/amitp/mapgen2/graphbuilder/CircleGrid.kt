@@ -22,7 +22,7 @@ class CircleGrid(
 ) {
 
     companion object {
-        private val DISTANCE_ACCURACY = 1.01f
+        private const val DISTANCE_ACCURACY = 1.01f
     }
 
     class Circumcircle(val x: Float, val y: Float, val rSq: Float) {
@@ -69,7 +69,7 @@ class CircleGrid(
                         cellGrid[gridIndexI * 2] = cellX
                         cellGrid[gridIndexI * 2 + 1] = cellY
 
-                        println("Inserting #${controlCells.size shr 1}, $cellX,$cellY into $gxi,$gyi")
+                        // println("Inserting #${controlCells.size shr 1}, $cellX,$cellY into $gxi,$gyi")
                         controlCells.add(cellX, cellY)
                         return
                     }
@@ -78,14 +78,15 @@ class CircleGrid(
 
             extraCells.add(cellX, cellY)
             println("Overriding cell! $gridIndex (${extraCells.size shr 1} total)")
-            println("Inserting #${controlCells.size shr 1}, $cellX,$cellY into extras")
+            // println("Inserting #${controlCells.size shr 1}, $cellX,$cellY into extras")
         } else {
             cellGrid[gridIndex * 2] = cellX
             cellGrid[gridIndex * 2 + 1] = cellY
-            println("Inserting #${controlCells.size shr 1}, $cellX,$cellY into $gx,$gy")
+            // println("Inserting #${controlCells.size shr 1}, $cellX,$cellY into $gx,$gy")
         }
 
-        controlCells.add(cellX, cellY)
+        // all is fine -> no control cells needed any more
+        // controlCells.add(cellX, cellY)
     }
 
     fun IntArrayList.addUnique(value: Int) {

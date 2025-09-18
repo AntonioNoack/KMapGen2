@@ -11,6 +11,7 @@ import me.anno.maths.MinMax.min
 import me.anno.utils.Clock
 import me.anno.utils.OS.home
 import me.anno.utils.algorithms.ForLoop.forLoopSafely
+import me.anno.utils.assertions.assertEquals
 import me.anno.utils.assertions.assertTrue
 import me.anno.utils.structures.arrays.IntArrayList
 import org.apache.logging.log4j.LogManager
@@ -19,6 +20,8 @@ import org.joml.Vector2f
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
+import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -47,7 +50,7 @@ class GridVoronoi(points: FloatArray, val size: Float) {
     }
 
     val maxRadius = 10
-    val scale = 7 // at max (maxRadius/4 + 1.5)²
+    val scale = 20 // at max (maxRadius/4 + 1.5)²
 
     val numPointsX = max(sqrt(numPoints * scale.toFloat()).toInt(), 3)
     val numPointsY = max((numPoints * scale) / numPointsX, 3)
@@ -254,7 +257,7 @@ class GridVoronoi(points: FloatArray, val size: Float) {
             if (cellB == cellA) return // already seen
 
             // we found a new cell on the border
-            println("next border cell: $cellB")
+            // println("next border cell: $cellB")
 
             if (cellA == -1) {
                 cellA = cellB
@@ -272,19 +275,37 @@ class GridVoronoi(points: FloatArray, val size: Float) {
             val bix = cells.getPointX(cellB)
             val biy = cells.getPointY(cellB)
 
+            val abx = bix - aix
+            val aby = biy - aiy
+
             val cx = (aix + bix) * 0.5f
             val cy = (aiy + biy) * 0.5f
 
             var bestCorner = -1
+            var bestScore = 0f
+
             fun checkCorner(corner: Int, otherCell: Int) {
                 if (corners.cells.contains(corner, otherCell)) {
-                    bestCorner = corner
+
+                    val cnx = corners.getPointX(corner)
+                    val cny = corners.getPointY(corner)
+
+                    val dirX = cx - cnx
+                    val dirY = cy - cny
+
+                    // shall be perpendicular
+                    val score = abs(dirX * aby - dirY * abx) / max(hypot(dirX, dirY), 1e-9f)
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestCorner = corner
+                    }
+
                 }
             }
 
             cells.corners.forEach(cellA) { corner -> checkCorner(corner, cellB) }
-            if (bestCorner == -1) cells.corners.forEach(cellB) { corner ->
-                if (bestCorner == -1) checkCorner(corner, cellA)
+            cells.corners.forEach(cellB) { corner ->
+                checkCorner(corner, cellA)
             }
 
             if (bestCorner >= 0) {
@@ -320,6 +341,8 @@ class GridVoronoi(points: FloatArray, val size: Float) {
 
                 edgesToBorder.add(ToBorder(cellA, cellB, bestCorner, hitX, hitY))
 
+            } else {
+                // todo else we MUST search for a path, and then process vertices the path like before!!!
             }
 
             @Suppress("AssignedValueIsNeverRead") // Intellij is lying
@@ -335,37 +358,123 @@ class GridVoronoi(points: FloatArray, val size: Float) {
 
         println("Adding ${edgesToBorder.size} edges/corners to the border (${corners.size} corners + ${edges.size} edges)")
 
+        var numExtraCorners = edgesToBorder.size
+        var numExtraEdges = edgesToBorder.size
+
+        var last = edgesToBorder.lastIndex
+        for (i in 0 until edgesToBorder.size) {
+            if (i == last) break
+            val corner0 = edgesToBorder[last]
+            val corner1 = edgesToBorder[i]
+
+            if (corner0.cellB == corner1.cellA) {
+                numExtraEdges++
+
+                // calculate whether we need an extra corner vertex
+                val needCornerVertex = corner0.posX != corner1.posX && corner0.posY != corner1.posY
+                if (needCornerVertex) {
+                    numExtraCorners++
+                    numExtraEdges++
+                }
+            }
+
+            last = i
+        }
+
         var edge = edges.size
         var corner = corners.size
-        corners.resize(corners.size + edgesToBorder.size)
-        edges.resize(edges.size + edgesToBorder.size)
+        val firstNewCorner = corner
 
-        // todo connect borders at the top (need to check ai and bi of neighboring results)
+        println("Extra corners: $numExtraCorners, extra edges: $numExtraEdges, edges to border: ${edgesToBorder.size}")
+
+        corners.resize(corners.size + numExtraCorners)
+        edges.resize(edges.size + numExtraEdges)
+
+        fun createBorderEdge(
+            cornerA: Int, cornerB: Int,
+            cellA: Int, cellB: Int,
+        ) {
+
+            assertTrue(cornerA in corners.indices)
+            assertTrue(cornerB in corners.indices)
+
+            edges.setCornerA(edge, cornerA)
+            edges.setCornerB(edge, cornerB)
+            edges.setCellA(edge, cellA)
+            edges.setCellB(edge, cellB)
+
+            cells.edges.add(cellA, edge)
+
+            if (cellB >= 0) {
+                cells.edges.add(cellB, edge)
+                cells.neighbors.addUnique(cellA, cellB)
+                cells.neighbors.addUnique(cellB, cellA)
+            }
+
+            edge++
+        }
+
+        fun createBorderCorner(posX: Float, posY: Float, cellA: Int, cellB: Int, edgeA: Int, edgeB: Int) {
+            corners.setPoint(corner, posX, posY)
+            corners.setBorder(corner, true)
+
+            corners.edges.add(corner, edgeA)
+            if (edgeB >= 0) corners.edges.add(corner, edgeB)
+            cells.corners.add(cellA, corner)
+            if (cellB >= 0) cells.corners.add(cellB, corner)
+
+            corner++
+        }
 
         for (i in edgesToBorder.indices) {
             val toBorder = edgesToBorder[i]
             val cellA = toBorder.cellA
             val cellB = toBorder.cellB
 
-            edges.setCornerA(edge, toBorder.cornerA)
-            edges.setCornerB(edge, corner) // new corner
-            edges.setCellA(edge, cellA)
-            edges.setCellB(edge, cellB)
-
-            corners.setPoint(corner, toBorder.posX, toBorder.posY)
-            corners.setBorder(corner, true)
-
-            corners.edges.add(corner, edge)
-            cells.corners.add(cellA, corner)
-            cells.corners.add(cellB, corner)
-            cells.edges.add(cellA, edge)
-            cells.edges.add(cellB, edge)
-            cells.neighbors.addUnique(cellA, cellB)
-            cells.neighbors.addUnique(cellB, cellA)
-
-            corner++
-            edge++
+            val edgeI = edge
+            createBorderEdge(toBorder.cornerA, corner, cellA, cellB)
+            createBorderCorner(toBorder.posX, toBorder.posY, cellA, cellB, edgeI, -1)
         }
+
+        // connect borders at the top (need to check ai and bi of neighboring results)
+        last = edgesToBorder.lastIndex
+        for (i in 0 until edgesToBorder.size) {
+            if (i == last) break
+            val corner0 = edgesToBorder[last]
+            val corner1 = edgesToBorder[i]
+
+            if (corner0.cellB == corner1.cellA) {
+                // connect these two corners
+
+                val corner0i = firstNewCorner + last
+                val corner1i = firstNewCorner + i
+
+                val cell = corner0.cellB
+
+                // calculate whether we need an extra corner vertex
+                val needCornerVertex = corner0.posX != corner1.posX && corner0.posY != corner1.posY
+                if (needCornerVertex) {
+
+                    val edgeI = edge
+                    createBorderEdge(corner0i, corner, cell, -1)
+                    createBorderEdge(corner1i, corner, cell, -1)
+                    assertEquals(edge, edgeI + 2)
+
+                    // define corner position
+                    val posX = if (corner0.posX == 0f || corner1.posX == 0f) 0f else size
+                    val posY = if (corner0.posY == 0f || corner1.posY == 0f) 0f else size
+                    createBorderCorner(posX, posY, cell, -1, edgeI, edgeI + 1)
+
+                } else {
+                    createBorderEdge(corner0i, corner1i, cell, -1)
+                }
+            }
+
+            last = i
+        }
+
+        assertEquals(corners.size, corner)
+        assertEquals(edges.size, edge)
 
     }
 

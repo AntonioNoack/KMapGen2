@@ -2,6 +2,8 @@ package amitp.mapgen2.structures
 
 import me.anno.maths.Maths.ceilDiv
 import me.anno.utils.InternalAPI
+import me.anno.utils.assertions.assertEquals
+import me.anno.utils.assertions.assertTrue
 import me.anno.utils.types.Booleans.toInt
 import kotlin.math.max
 
@@ -12,7 +14,7 @@ import kotlin.math.max
  * Be wary that if you underestimate initialCapacityPerValue, this collect gets really slow!
  * The order of the inserted items may change.
  * */
-class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
+class PackedIntLists(var size: Int, initialCapacityPerValue: Int) {
 
     @InternalAPI
     var offsets: IntArray = IntArray(size)
@@ -36,6 +38,7 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
         var index = index
         var value = value
         while (true) {
+            if(index >= offsets.size) println("Illegal index! $index vs $size, ${offsets.size}")
             val pos = offsets[index] + getSize(index)
 
             // check if next cell is free for end marker
@@ -147,15 +150,29 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
     }
 
     fun resizeTo(newSize: Int) {
-        val cellsPerSize = ceilDiv(values.size, size)
-        val lastCell = if (size == 0) 0 else offsets[size - 1] + getSize(size - 1)
-        val requiredSize = lastCell + (newSize - size + 1) * cellsPerSize
+        val oldSize = size
+        val cellsPerSize = ceilDiv(values.size, oldSize)
+        assertTrue(cellsPerSize >= 2)
 
-        val oldSize = values.size
-        if (requiredSize > oldSize) {
+        val oldNumValues = values.size
+        val requiredSize = oldNumValues + (newSize - oldSize) * cellsPerSize
+
+        if (requiredSize > oldNumValues) {
             values = values.copyOf(requiredSize)
-            values.fill(-1, oldSize, requiredSize)
+            values.fill(-1, oldNumValues, requiredSize)
         }
+
         offsets = offsets.copyOf(newSize)
+
+        // define start offsets for the new cells
+        for (i in oldSize until newSize) {
+            offsets[i] = oldNumValues + (i - oldSize) * cellsPerSize + 1
+        }
+        if (oldSize in 1 until newSize) {
+            assertEquals(values[offsets[oldSize] - 1], -1)
+            // cell before us must be free
+        }
+
+        size = newSize
     }
 }

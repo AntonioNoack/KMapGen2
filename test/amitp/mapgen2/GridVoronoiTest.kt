@@ -3,7 +3,7 @@ package amitp.mapgen2
 import amitp.mapgen2.graphbuilder.GridVoronoi
 import amitp.mapgen2.graphbuilder.Voronoi
 import amitp.mapgen2.graphbuilder.VoronoiGraphBuilder.Companion.buildGraph
-import amitp.mapgen2.pointselector.RandomPointSelector
+import amitp.mapgen2.pointselector.GridPointSelector
 import amitp.mapgen2.structures.CornerList
 import me.anno.maths.MinMax.max
 import me.anno.maths.MinMax.median
@@ -54,9 +54,9 @@ class GridVoronoiTest {
         // generate centers
         // use grid-voronoi and baseline
         // todo compare all corners and edges, which are within the defined bounds
-        val n = 100
-        val size = 1f
-        val points = RandomPointSelector.select(size, n, 1234)
+        val n = 1000
+        val size = 1000f
+        val points = GridPointSelector(0.7f).select(size, n, 8541)
 
         val grid = GridVoronoi(points, size)
         val actual = grid.map
@@ -84,14 +84,15 @@ class GridVoronoiTest {
             forEachCell(expected.corners, corner) { v1, v2, v3 ->
                 val key = Vector3i(v1, v2, v3)
                 if (key !in actualCorners) {
+                    if (point.x in 0f..size && point.y in 0f..size) {
+                        failed++
 
-                    failed++
-                    val cells = ArrayList<Int>()
-                    expected.corners.cells.forEach(corner) { cell -> cells.add(cell) }
-                    cells.sort()
+                        val cells = ArrayList<Int>()
+                        expected.corners.cells.forEach(corner) { cell -> cells.add(cell) }
+                        cells.sort()
 
-                    println("Missing corner #$corner, $cells, (${(point.x * grid.numPointsX)},${point.y * grid.numPointsY})")
-
+                        println("Missing corner #$corner, $cells, (${(point.x * grid.numPointsX)},${point.y * grid.numPointsY})")
+                    }
                 } else {
                     // todo compare edges and cells
                 }
@@ -103,15 +104,14 @@ class GridVoronoiTest {
     }
 
     fun showGrid(grid: GridVoronoi, size: Float, map: GeneratedMap, name: String) {
-        val scale = 50f
-        val imgSize = (scale * max(grid.numPointsX, grid.numPointsY)).toInt()
+        val imgSize = 1024
         val img = BufferedImage(imgSize, imgSize, 1)
         val g = img.graphics as Graphics2D
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
         val corners = map.corners
         val edges = map.edges
-        val scaleI = imgSize / size
+        val scaleI = (imgSize - 1) / size
         for (edge in edges.indices) {
             val v0 = edges.getCornerA(edge)
             val v1 = edges.getCornerB(edge)
@@ -134,7 +134,7 @@ class GridVoronoiTest {
             val x0 = (corners.getPointX(corner) * scaleI).toInt()
             val y0 = (corners.getPointY(corner) * scaleI).toInt()
 
-            g.color = Color.CYAN
+            g.color = if (corners.isBorder(corner)) Color.MAGENTA else Color.CYAN
             g.fillRect(x0 - 1, y0 - 1, 3, 3)
         }
 
