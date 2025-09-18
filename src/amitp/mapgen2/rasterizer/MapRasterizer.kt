@@ -41,7 +41,7 @@ object MapRasterizer {
         val bounds = AABBf()
         val pt = Vector2f()
         val vertices = List(MAX_VERTICES_PER_POLYGON) { Vector3f() }
-        for (i in 0 until cells.size) {
+        for (i in cells.indices) {
             val biomeIndex = cells.getBiome(i).ordinal
             if (biomeIndex == 0) continue // fast-path
 
@@ -207,7 +207,7 @@ object MapRasterizer {
     ) {
         val corners = map.corners
         val edges = map.edges
-        for (edge in 0 until edges.size) {
+        for (edge in edges.indices) {
             val v0 = edges.getCornerA(edge)
             val v1 = edges.getCornerB(edge)
             if (v0 < 0 || v1 < 0 || !filter.test(edge)) continue
@@ -271,7 +271,7 @@ object MapRasterizer {
         val bounds = AABBf()
         val pt = Vector2f()
         val vertices = List(MAX_VERTICES_PER_POLYGON) { Vector3f() }
-        for (i in 0 until cells.size) {
+        for (i in cells.indices) {
             val biomeIndex = cells.getBiome(i).ordinal
             if (biomeIndex == 0) continue // fast-path
 

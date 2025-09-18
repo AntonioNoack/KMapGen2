@@ -20,6 +20,102 @@ class VoronoiGraphBuilder(
 
     companion object {
         private val LOGGER = LogManager.getLogger(VoronoiGraphBuilder::class)
+
+        fun buildGraph(points: FloatArray, voronoi: Voronoi, size: Float): GeneratedMap {
+
+            // Create Cell objects for each point
+            val cells = CellList(points.size shr 1)
+            for (i in cells.indices) {
+                cells.setPoint(i, points[i * 2], points[i * 2 + 1])
+            }
+
+            // Helper: create or reuse Corner object
+            val cornerMap = LongToIntHashMap(-1)
+
+            fun ensureCorner(px: Float, py: Float) {
+                if (px.isNaN() || py.isNaN()) return
+                val key = pack64(px.toRawBits(), py.toRawBits())
+                cornerMap.getOrPut(key) { cornerMap.size }
+            }
+
+            fun getCorner(px: Float, py: Float): Int {
+                val key = pack64(px.toRawBits(), py.toRawBits())
+                return cornerMap[key]
+            }
+
+            // Build edges
+            val edges0 = voronoi.edges
+            val edges = EdgeList(edges0.size)
+
+            for (edgeIndex in 0 until edges0.size) {
+                ensureCorner(edges0.getVertex(edgeIndex, 0), edges0.getVertex(edgeIndex, 1))
+                ensureCorner(edges0.getVertex(edgeIndex, 2), edges0.getVertex(edgeIndex, 3))
+            }
+
+            val cornerList = CornerList(cornerMap.size)
+            cornerMap.forEach { pos, i ->
+                val px = Float.fromBits(unpackHighFrom64(pos))
+                val py = Float.fromBits(unpackLowFrom64(pos))
+                cornerList.setPoint(i, px, py)
+                cornerList.setBorder(i, px <= 0f || px >= size || py <= 0f || py >= size)
+            }
+
+            for (edgeIndex in 0 until edges0.size) {
+                val d0 = edges0.getRegionL(edgeIndex)
+                val d1 = edges0.getRegionR(edgeIndex)
+
+                val v0 = getCorner(edges0.getVertex(edgeIndex, 0), edges0.getVertex(edgeIndex, 1))
+                val v1 = getCorner(edges0.getVertex(edgeIndex, 2), edges0.getVertex(edgeIndex, 3))
+
+                edges.setCellA(edgeIndex, d0)
+                edges.setCellB(edgeIndex, d1)
+                edges.setCornerA(edgeIndex, v0)
+                edges.setCornerB(edgeIndex, v1)
+
+                // Cells point to edges
+                if (d0 >= 0) cells.edges.add(d0, edgeIndex)
+                if (d1 >= 0) cells.edges.add(d1, edgeIndex)
+
+                // Corners point to edges
+                if (v0 >= 0) cornerList.edges.add(v0, edgeIndex)
+                if (v1 >= 0) cornerList.edges.add(v1, edgeIndex)
+
+                // Cells point to cells
+                if (d0 >= 0 && d1 >= 0) {
+                    cells.neighbors.addUnique(d0, d1)
+                    cells.neighbors.addUnique(d1, d0)
+                }
+
+                // Corners point to corners
+                if (v0 >= 0 && v1 >= 0) {
+                    cornerList.neighbors.addUnique(v0, v1)
+                    cornerList.neighbors.addUnique(v1, v0)
+                }
+
+                // Cells point to corners
+                if (d0 >= 0) {
+                    if (v0 >= 0) cells.corners.addUnique(d0, v0)
+                    if (v1 >= 0) cells.corners.addUnique(d0, v1)
+                }
+                if (d1 >= 0) {
+                    if (v0 >= 0) cells.corners.addUnique(d1, v0)
+                    if (v1 >= 0) cells.corners.addUnique(d1, v1)
+                }
+
+                // Corners point to cells
+                if (v0 >= 0) {
+                    cornerList.cells.addUnique(v0, d0)
+                    cornerList.cells.addUnique(v0, d1)
+                }
+                if (v1 >= 0) {
+                    cornerList.cells.addUnique(v1, d0)
+                    cornerList.cells.addUnique(v1, d1)
+                }
+            }
+
+            return GeneratedMap(cells, cornerList, edges, size)
+        }
+
     }
 
     override fun buildGraph(size: Float, numCells: Int, seed: Long): GeneratedMap {
@@ -70,7 +166,7 @@ class VoronoiGraphBuilder(
      * */
     private fun improveCorners(cells: CellList, corners: CornerList, size: Float) {
         val newCorners = FloatArray(corners.size shl 1)
-        for (q in 0 until corners.size) {
+        for (q in corners.indices) {
             if (corners.isBorder(q)) {
                 newCorners[q * 2] = corners.getPointX(q)
                 newCorners[q * 2 + 1] = corners.getPointY(q)
@@ -90,100 +186,4 @@ class VoronoiGraphBuilder(
         }
         corners.setPoints(newCorners)
     }
-
-    private fun buildGraph(points: FloatArray, voronoi: Voronoi, size: Float): GeneratedMap {
-
-        // Create Cell objects for each point
-        val cells = CellList(points.size shr 1)
-        for (i in 0 until cells.size) {
-            cells.setPoint(i, points[i * 2], points[i * 2 + 1])
-        }
-
-        // Helper: create or reuse Corner object
-        val cornerMap = LongToIntHashMap(-1)
-
-        fun ensureCorner(px: Float, py: Float) {
-            if (px.isNaN() || py.isNaN()) return
-            val key = pack64(px.toRawBits(), py.toRawBits())
-            cornerMap.getOrPut(key) { cornerMap.size }
-        }
-
-        fun getCorner(px: Float, py: Float): Int {
-            val key = pack64(px.toRawBits(), py.toRawBits())
-            return cornerMap[key]
-        }
-
-        // Build edges
-        val edges0 = voronoi.edges
-        val edges = EdgeList(edges0.size)
-
-        for (edgeIndex in 0 until edges0.size) {
-            ensureCorner(edges0.getVertex(edgeIndex, 0), edges0.getVertex(edgeIndex, 1))
-            ensureCorner(edges0.getVertex(edgeIndex, 2), edges0.getVertex(edgeIndex, 3))
-        }
-
-        val cornerList = CornerList(cornerMap.size)
-        cornerMap.forEach { pos, i ->
-            val px = Float.fromBits(unpackHighFrom64(pos))
-            val py = Float.fromBits(unpackLowFrom64(pos))
-            cornerList.setPoint(i, px, py)
-            cornerList.setBorder(i, px <= 0f || px >= size || py <= 0f || py >= size)
-        }
-
-        for (edgeIndex in 0 until edges0.size) {
-            val d0 = edges0.getRegionL(edgeIndex)
-            val d1 = edges0.getRegionR(edgeIndex)
-
-            val v0 = getCorner(edges0.getVertex(edgeIndex, 0), edges0.getVertex(edgeIndex, 1))
-            val v1 = getCorner(edges0.getVertex(edgeIndex, 2), edges0.getVertex(edgeIndex, 3))
-
-            edges.setCellA(edgeIndex, d0)
-            edges.setCellB(edgeIndex, d1)
-            edges.setCornerA(edgeIndex, v0)
-            edges.setCornerB(edgeIndex, v1)
-
-            // Cells point to edges
-            if (d0 >= 0) cells.edges.add(d0, edgeIndex)
-            if (d1 >= 0) cells.edges.add(d1, edgeIndex)
-
-            // Corners point to edges
-            if (v0 >= 0) cornerList.edges.add(v0, edgeIndex)
-            if (v1 >= 0) cornerList.edges.add(v1, edgeIndex)
-
-            // Cells point to cells
-            if (d0 >= 0 && d1 >= 0) {
-                cells.neighbors.addUnique(d0, d1)
-                cells.neighbors.addUnique(d1, d0)
-            }
-
-            // Corners point to corners
-            if (v0 >= 0 && v1 >= 0) {
-                cornerList.neighbors.addUnique(v0, v1)
-                cornerList.neighbors.addUnique(v1, v0)
-            }
-
-            // Cells point to corners
-            if (d0 >= 0) {
-                if (v0 >= 0) cells.corners.addUnique(d0, v0)
-                if (v1 >= 0) cells.corners.addUnique(d0, v1)
-            }
-            if (d1 >= 0) {
-                if (v0 >= 0) cells.corners.addUnique(d1, v0)
-                if (v1 >= 0) cells.corners.addUnique(d1, v1)
-            }
-
-            // Corners point to cells
-            if (v0 >= 0) {
-                cornerList.cells.addUnique(v0, d0)
-                cornerList.cells.addUnique(v0, d1)
-            }
-            if (v1 >= 0) {
-                cornerList.cells.addUnique(v1, d0)
-                cornerList.cells.addUnique(v1, d1)
-            }
-        }
-
-        return GeneratedMap(cells, cornerList, edges, size)
-    }
-
 }

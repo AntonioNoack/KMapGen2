@@ -7,7 +7,7 @@ import kotlin.math.atan2
 /**
  * Base class for lists with positions, elevation, moisture (humidity), and water/ocean/coast/border flags without much memory overhead.
  * */
-open class PointList(val size: Int) {
+open class PointList(size: Int) {
 
     companion object {
         private const val WATER_FLAG = 1
@@ -16,8 +16,12 @@ open class PointList(val size: Int) {
         private const val BORDER_FLAG = 8
     }
 
-    private val floats = FloatArray(size * 4)
-    private val flags = ByteArray(size)
+    val size: Int get() = flags.size
+    var indices = 0 until size
+        private set
+
+    private var floats = FloatArray(size * 4)
+    private var flags = ByteArray(size)
 
     fun getPointX(index: Int) = floats[index * 4]
     fun getPointY(index: Int) = floats[index * 4 + 1]
@@ -31,7 +35,7 @@ open class PointList(val size: Int) {
     }
 
     fun setPoints(values: FloatArray) {
-        for (i in 0 until size) {
+        for (i in indices) {
             setPoint(i, values[i * 2], values[i * 2 + 1])
         }
     }
@@ -61,7 +65,7 @@ open class PointList(val size: Int) {
     }
 
     fun sortByAngle(property: PackedIntLists, items: PointList) {
-        for (i in 0 until size) {
+        for (i in indices) {
             val px = getPointX(i)
             val py = getPointY(i)
             property.sortBy(i) { j ->
@@ -73,7 +77,7 @@ open class PointList(val size: Int) {
     }
 
     fun sortByAngle(property: PackedIntLists, edges: EdgeList, corners: CornerList) {
-        for (i in 0 until size) {
+        for (i in indices) {
             val px = getPointX(i) * 2f
             val py = getPointY(i) * 2f
             property.sortBy(i) { j ->
@@ -94,5 +98,11 @@ open class PointList(val size: Int) {
                 } else 0f
             }
         }
+    }
+
+    open fun resize(newSize: Int) {
+        floats = floats.copyOf(newSize * 4)
+        flags = flags.copyOf(newSize)
+        indices = 0 until newSize
     }
 }

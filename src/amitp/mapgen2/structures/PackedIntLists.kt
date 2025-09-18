@@ -1,5 +1,6 @@
 package amitp.mapgen2.structures
 
+import me.anno.maths.Maths.ceilDiv
 import me.anno.utils.InternalAPI
 import me.anno.utils.types.Booleans.toInt
 import kotlin.math.max
@@ -14,7 +15,7 @@ import kotlin.math.max
 class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
 
     @InternalAPI
-    val offsets: IntArray = IntArray(size)
+    var offsets: IntArray = IntArray(size)
 
     @InternalAPI
     var values: IntArray
@@ -143,5 +144,18 @@ class PackedIntLists(val size: Int, initialCapacityPerValue: Int) {
                 }
             }
         }
+    }
+
+    fun resizeTo(newSize: Int) {
+        val cellsPerSize = ceilDiv(values.size, size)
+        val lastCell = if (size == 0) 0 else offsets[size - 1] + getSize(size - 1)
+        val requiredSize = lastCell + (newSize - size + 1) * cellsPerSize
+
+        val oldSize = values.size
+        if (requiredSize > oldSize) {
+            values = values.copyOf(requiredSize)
+            values.fill(-1, oldSize, requiredSize)
+        }
+        offsets = offsets.copyOf(newSize)
     }
 }

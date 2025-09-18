@@ -26,7 +26,7 @@ object Lava {
 
         val nextLavaCorners = IntArrayList()
 
-        searchForVolcanoPeaks@ for (c in 0 until cells.size) {
+        searchForVolcanoPeaks@ for (c in cells.indices) {
             if (cells.isWater(c) || cells.getMoisture(c) > 0.3f) continue
             val height = cells.getElevation(c)
             if (height < 0.8f) continue
@@ -64,7 +64,8 @@ object Lava {
                         val c0 = edges.getCornerA(e)
                         val c1 = edges.getCornerB(e)
                         val other = if (c0 == corner) c1 else c0
-                        if (!corners.isWater(other) &&
+                        if (other >= 0 &&
+                            !corners.isWater(other) &&
                             corners.getElevation(other) < bestHeight
                         ) {
                             bestNextEdge = e

@@ -35,7 +35,7 @@ class NoisyEdges(val offsets: IntArray, val points: FloatArray) {
             val pool = JomlPools.vec2f
             val index = pool.index
 
-            for (edge in 0 until edges.size) {
+            for (edge in edges.indices) {
 
                 pool.index = index
 

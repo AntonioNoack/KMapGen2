@@ -20,7 +20,7 @@ fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
 
     val edges = map.edges
     val corners = map.corners
-    for (index in 0 until edges.size) {
+    for (index in edges.indices) {
         val v0 = corners.getOrNull(edges.getCornerA(index)) ?: continue
         val v1 = corners.getOrNull(edges.getCornerB(index)) ?: continue
 
@@ -33,7 +33,7 @@ fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
     val xs = IntArray(16)
     val ys = IntArray(16)
     val biomeColors = Biome.entries.map { Color(it.debugColor) }
-    for (i in 0 until cells.size) {
+    for (i in cells.indices) {
         g.color = biomeColors[cells.getBiome(i).ordinal]
 
         var n = 0
@@ -55,7 +55,7 @@ fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
 
     g.color = Color.DARK_GRAY
     g.stroke = BasicStroke(3f)
-    for (edgeIndex in 0 until edges.size) {
+    for (edgeIndex in edges.indices) {
         if (edges.isRoad(edgeIndex)) {
             val v0 = corners.getOrNull(edges.getCornerA(edgeIndex)) ?: continue
             val v1 = corners.getOrNull(edges.getCornerB(edgeIndex)) ?: continue
@@ -65,7 +65,7 @@ fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
 
     g.color = Color.CYAN
     g.stroke = BasicStroke(2f)
-    for (edgeIndex in 0 until edges.size) {
+    for (edgeIndex in edges.indices) {
         if (edges.hasRiver(edgeIndex)) {
             val v0 = corners.getOrNull(edges.getCornerA(edgeIndex)) ?: continue
             val v1 = corners.getOrNull(edges.getCornerB(edgeIndex)) ?: continue
@@ -75,7 +75,7 @@ fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
 
     g.color = Color.ORANGE
     g.stroke = BasicStroke(2f)
-    for (edgeIndex in 0 until edges.size) {
+    for (edgeIndex in edges.indices) {
         if (edges.hasLava(edgeIndex)) {
             val v0 = corners.getOrNull(edges.getCornerA(edgeIndex)) ?: continue
             val v1 = corners.getOrNull(edges.getCornerB(edgeIndex)) ?: continue

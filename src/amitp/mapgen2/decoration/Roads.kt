@@ -31,7 +31,7 @@ object Roads {
         val queue = ArrayDeque<Int>()
         val cellContour = IntArray(cells.size) // cell index -> int contour level
 
-        for (p in 0 until cells.size) {
+        for (p in cells.indices) {
             if (cells.isCoast(p) || cells.isOcean(p)) {
                 cellContour[p] = 1
                 queue.add(p)
@@ -63,7 +63,7 @@ object Roads {
     fun placeRoadsOnContourLevels(map: GeneratedMap, cellContour: IntArray) {
         val cells = map.cells
         val edges = map.edges
-        for (p in 0 until cells.size) {
+        for (p in cells.indices) {
             cells.neighbors.forEach(p) { q ->
                 if (cellContour[p] != cellContour[q]) {
                     val edge = findEdge(cells, edges, p, q)

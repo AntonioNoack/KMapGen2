@@ -5,7 +5,7 @@ package amitp.mapgen2.structures
  * */
 class CornerList(size: Int) : PointList(size) {
 
-    private val ints = IntArray(size * 4)
+    private var ints = IntArray(size * 4)
 
     fun getRiverFlowStrength(index: Int) = ints[index * 4]
     fun incRiverFlowStrength(index: Int) {
@@ -25,6 +25,14 @@ class CornerList(size: Int) : PointList(size) {
     fun getWatershedSize(index: Int) = ints[index * 4 + 3]
     fun setWatershedSize(index: Int, value: Int) {
         ints[index * 4 + 3] = value
+    }
+
+    override fun resize(newSize: Int) {
+        super.resize(newSize)
+        ints = ints.copyOf(newSize * 4)
+        cells.resizeTo(newSize)
+        neighbors.resizeTo(newSize)
+        edges.resizeTo(newSize)
     }
 
     /**

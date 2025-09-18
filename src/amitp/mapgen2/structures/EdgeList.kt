@@ -2,7 +2,7 @@ package amitp.mapgen2.structures
 
 import me.anno.utils.types.Booleans.hasFlag
 
-class EdgeList(val size: Int) {
+class EdgeList(size: Int) {
 
     companion object {
         private const val FLAG_RIVER = 1
@@ -10,8 +10,11 @@ class EdgeList(val size: Int) {
         private const val FLAG_LAVA = 4
     }
 
-    private val ints = IntArray(size * 4)
-    private val flags = ByteArray(size)
+    val size: Int get() = flags.size
+    var indices = 0 until size
+
+    private var ints = IntArray(size * 4)
+    private var flags = ByteArray(size)
 
     fun setCornerA(index: Int, value: Int) {
         ints[index.shl(2)] = value
@@ -42,6 +45,12 @@ class EdgeList(val size: Int) {
     fun hasLava(index: Int): Boolean = flags[index].toInt().hasFlag(FLAG_LAVA)
     fun setLava(index: Int) {
         flags[index] = (flags[index].toInt() or FLAG_LAVA).toByte()
+    }
+
+    fun resize(newSize: Int) {
+        ints = ints.copyOf(newSize * 4)
+        flags = flags.copyOf(newSize)
+        indices = 0 until newSize
     }
 
     /**

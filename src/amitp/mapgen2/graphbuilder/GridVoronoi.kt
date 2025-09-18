@@ -6,7 +6,8 @@ import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
 import amitp.mapgen2.structures.EdgeList
 import me.anno.maths.Maths.sq
-import me.anno.maths.Packing.pack64
+import me.anno.maths.MinMax.max
+import me.anno.maths.MinMax.min
 import me.anno.utils.Clock
 import me.anno.utils.OS.home
 import me.anno.utils.algorithms.ForLoop.forLoopSafely
@@ -15,17 +16,14 @@ import me.anno.utils.structures.arrays.IntArrayList
 import org.apache.logging.log4j.LogManager
 import org.joml.AABBf
 import org.joml.Vector2f
-import speiger.primitivecollections.LongToIntHashMap
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sqrt
 import kotlin.random.Random
 
 // todo this doesn't work perfectly yet
-class GridVoronoi(points: FloatArray, size: Float) {
+class GridVoronoi(points: FloatArray, val size: Float) {
 
     companion object {
         private val LOGGER = LogManager.getLogger(GridVoronoi::class)
@@ -39,19 +37,20 @@ class GridVoronoi(points: FloatArray, size: Float) {
         forLoopSafely(points.size, 2) {
             bounds.union(points[it], points[it + 1], 0f)
         }
+        val extra = 0.5f
         bounds.addMargin(
-            bounds.deltaX * 0.5f / numPointsX,
-            bounds.deltaY * 0.5f / numPointsY, 0f
+            bounds.deltaX * extra / numPointsX,
+            bounds.deltaY * extra / numPointsY, 0f
         )
         clock.stop("Bounds")
         return bounds
     }
 
-    val fillRadius = 5
-    val scale = 40 // at max (fillRadius + 1.5)²
+    val maxRadius = 10
+    val scale = 7 // at max (maxRadius/4 + 1.5)²
 
-    private val numPointsX = sqrt(numPoints * scale.toFloat()).toInt()
-    private val numPointsY = (numPoints * scale) / numPointsX
+    val numPointsX = max(sqrt(numPoints * scale.toFloat()).toInt(), 3)
+    val numPointsY = max((numPoints * scale) / numPointsX, 3)
     private val gridSize = numPointsX * numPointsY
 
     private val bounds = findBounds(points)
@@ -78,7 +77,10 @@ class GridVoronoi(points: FloatArray, size: Float) {
         val image = BufferedImage(numPointsX, numPointsY, 1)
         for (y in 0 until numPointsY) {
             for (x in 0 until numPointsX) {
-                image.setRGB(x, y, Random(closest[x + y * numPointsX].toLong()).nextInt())
+                val id = closest[x + y * numPointsX]
+                val color = if (false) Random(id.toLong()).nextInt() else
+                    Random(id.toLong()).nextInt().and(0xffff00) or id.and(255)
+                image.setRGB(x, y, color)
             }
         }
         ImageIO.write(image, "png", File(home.getChild("Desktop/indices.png").absolutePath))
@@ -110,34 +112,43 @@ class GridVoronoi(points: FloatArray, size: Float) {
             val gx = ((px - minX) * invX).toInt()
             val gy = ((py - minY) * invY).toInt()
 
-            val minXi = max(0, gx - fillRadius)
-            val maxXi = min(gx + fillRadius, numPointsX - 1)
-
-            val minYi = max(0, gy - fillRadius)
-            val maxYi = min(gy + fillRadius, numPointsY - 1)
-
             var added = false
             var minDist1 = Float.POSITIVE_INFINITY
-            for (yi in minYi..maxYi) {
-                for (xi in minXi..maxXi) {
-                    val dx = gridX[xi] - px
-                    val dy = gridY[yi] - py
-                    val distSq = dx * dx + dy * dy
-                    val cellIndex = xi + yi * numPointsX
-                    minDist1 = min(minDist1, distSq)
-                    if (distSq < distancesSq[cellIndex]) {
-                        distancesSq[cellIndex] = distSq
-                        closest[cellIndex] = pi shr 1
-                        added = true
-                    }
+            fun checkAdd(dxi: Int, dyi: Int) {
+                val xi = gx + dxi
+                val yi = gy + dyi
+                if (xi !in 0 until numPointsX || yi !in 0 until numPointsY) return
+                val dx = gridX[xi] - px
+                val dy = gridY[yi] - py
+                val distSq = dx * dx + dy * dy
+                val cellIndex = xi + yi * numPointsX
+                minDist1 = min(minDist1, distSq)
+                if (distSq < distancesSq[cellIndex]) {
+                    distancesSq[cellIndex] = distSq
+                    closest[cellIndex] = pi shr 1
+                    added = true
                 }
+            }
+
+            checkAdd(0, 0)
+            var anyAdded = false
+            for (radius in 1 until maxRadius) {
+                added = false
+                for (j in -radius until radius) {
+                    checkAdd(+radius, +j)
+                    checkAdd(-radius, -j)
+                    checkAdd(-j, +radius)
+                    checkAdd(+j, -radius)
+                }
+                if (radius > 3 && !added) break
+                if (added) anyAdded = true
             }
 
             assertTrue(minDist1 < maxMinDist) {
                 "Illegal min distance[$pi]: $minDist1 for $px,$py -> $gx,$gy -> ${gridX[gx] - px},${gridY[gy] - py}"
             }
 
-            if (!added) {
+            if (!anyAdded) {
                 val cellIndex = gx + gy * numPointsX
                 val prev = closest[cellIndex]
                 val prevDist = distancesSq[cellIndex]
@@ -151,67 +162,58 @@ class GridVoronoi(points: FloatArray, size: Float) {
 
     }
 
-    private fun key(a: Int, b: Int): Long {
-        return pack64(min(a, b), max(a, b))
-    }
-
-
-    private fun findCornersAndEdges(points: FloatArray, cells: CellList): CornersAndEdges {
+    private fun findCornersAndEdges(points: FloatArray): CircleGrid {
         val circleGrid = CircleGrid(numPointsX, numPointsY, bounds)
 
         forLoopSafely(points.size, 2) { i ->
             circleGrid.addCell(points[i], points[i + 1])
         }
+        clock.stop("Fill Circles")
 
         val tmp = Vector2f()
-        fun onCorner(min: Int, median: Int, max: Int) {
+        fun onCorner(ai: Int, bi: Int, ci: Int) {
             val (px, py) = circumcenter(
-                points[min * 2], points[min * 2 + 1],
-                points[median * 2], points[median * 2 + 1],
-                points[max * 2], points[max * 2 + 1], tmp
+                points[ai * 2], points[ai * 2 + 1],
+                points[bi * 2], points[bi * 2 + 1],
+                points[ci * 2], points[ci * 2 + 1], tmp
             )
 
-            val radiusSq = sq(points[min * 2] - px) + sq(points[min * 2 + 1] - py)
-            circleGrid.addCircle(px, py, radiusSq, min, median, max)
+            if (px <= 0f || px >= size || py <= 0f || py >= size) return // out of bounds -> will be handled later
+
+            val radiusSq = sq(points[ai * 2] - px) + sq(points[ai * 2 + 1] - py)
+            if (radiusSq.isFinite()) {
+                circleGrid.addCircumcircle(px, py, radiusSq, ai, bi, ci)
+            } // else covered anyway
         }
 
+        // iterate over center
         val unique = IntArrayList()
-
-        for (yi in 1 until numPointsY) {
-            for (xi in 1 until numPointsX) {
+        for (yi in 0 until numPointsY - 2) {
+            for (xi in 0 until numPointsX - 2) {
                 val cellIndex = xi + yi * numPointsX
-                val ai = closest[cellIndex]
-                val bi = closest[cellIndex - 1]
-                val ci = closest[cellIndex - numPointsX]
-                val di = closest[cellIndex - numPointsX - 1]
-
-                if (ai == di || bi == ci) continue
-
-                if (ai != -1) unique.add(ai)
-                if (bi != -1 && bi !in unique) unique.add(bi)
-                if (ci != -1 && ci !in unique) unique.add(ci)
-                if (di != -1 && di !in unique) unique.add(di)
-
-                when (unique.size) {
-                    3 -> {
-                        val i0 = unique[0]
-                        val i1 = unique[1]
-                        val i2 = unique[2]
-                        onCorner(i0, i1, i2)
+                for (dy in 0 until 3) {
+                    for (dx in 0 until 3) {
+                        val ai = closest[cellIndex + dx + dy * numPointsX]
+                        if (ai != -1 && ai !in unique) unique.add(ai)
                     }
-                    4 -> {
-                        onCorner(ai, bi, ci)
-                        onCorner(ai, bi, di)
-                        onCorner(bi, di, ci)
-                        onCorner(ai, ci, di)
+                }
+
+                for (i in 2 until unique.size) {
+                    for (j in 1 until i) {
+                        for (k in 0 until j) {
+                            val i0 = unique[i]
+                            val i1 = unique[j]
+                            val i2 = unique[k]
+                            // println("u3: ${min(i0, i1, i2)},${median(i0, i1, i2)},${max(i0, i1, i2)}")
+                            onCorner(i0, i1, i2)
+                        }
                     }
                 }
                 unique.clear()
             }
         }
-
-        clock.stop("Fill Circles")
-        return circleGrid.extractCornersAndEdges(cells, clock)
+        clock.stop("Find Corners in Center")
+        return circleGrid
     }
 
     private fun findEdges(points: FloatArray, size: Float): GeneratedMap {
@@ -219,7 +221,11 @@ class GridVoronoi(points: FloatArray, size: Float) {
         val cells = CellList(numPoints)
         cells.setPoints(points)
 
-        val (corners, edges) = findCornersAndEdges(points, cells)
+        val circleGrid = findCornersAndEdges(points)
+        val (corners, edges) = circleGrid.extractCornersAndEdges(cells, clock)
+
+        findCornersOnEdges(cells, corners, edges)
+        clock.stop("Find Corners on Edge")
 
         cornerNeighbors(edges, corners)
         clock.stop("Corner-Neighbors")
@@ -227,92 +233,150 @@ class GridVoronoi(points: FloatArray, size: Float) {
         return GeneratedMap(cells, corners, edges, size)
     }
 
-    private fun setCornerPositions(corners: CornerList, cornerData: IntArrayList) {
-        forLoopSafely(cornerData.size, 6) { i ->
-            val corner = cornerData[i + 3]
-            val px = Float.fromBits(cornerData[i + 4])
-            val py = Float.fromBits(cornerData[i + 5])
-            corners.setPoint(corner, px, py)
+    class ToBorder(
+        val cellA: Int,
+        val cellB: Int,
+        val cornerA: Int,
+        val posX: Float,
+        val posY: Float,
+    )
+
+    private fun findCornersOnEdges(cells: CellList, corners: CornerList, edges: EdgeList) {
+
+        val edgesToBorder = ArrayList<ToBorder>()
+
+        // iterate over border (without max, this would be an expensive O(n²) search, where n ~ numPointsX)
+        var cellA = -1
+        fun onBorderPixel(xi: Int, yi: Int) {
+            val cellIndex = xi + yi * numPointsX
+            val cellB = closest[cellIndex]
+            if (cellB == -1) return // or should we keep it??? for now assume a filled border
+            if (cellB == cellA) return // already seen
+
+            // we found a new cell on the border
+            println("next border cell: $cellB")
+
+            if (cellA == -1) {
+                cellA = cellB
+                return // wait for the next round
+            }
+
+            // find the common corner between cell ai and bi:
+            //  there should only be one
+
+            // todo we need to find the shortest path from cellA to cellB via corners
+            // todo collect all corners, and pick the one with the most 90° angle to the half-separating axis
+
+            val aix = cells.getPointX(cellA)
+            val aiy = cells.getPointY(cellA)
+            val bix = cells.getPointX(cellB)
+            val biy = cells.getPointY(cellB)
+
+            val cx = (aix + bix) * 0.5f
+            val cy = (aiy + biy) * 0.5f
+
+            var bestCorner = -1
+            fun checkCorner(corner: Int, otherCell: Int) {
+                if (corners.cells.contains(corner, otherCell)) {
+                    bestCorner = corner
+                }
+            }
+
+            cells.corners.forEach(cellA) { corner -> checkCorner(corner, cellB) }
+            if (bestCorner == -1) cells.corners.forEach(cellB) { corner ->
+                if (bestCorner == -1) checkCorner(corner, cellA)
+            }
+
+            if (bestCorner >= 0) {
+                // calculate the center between ai and bi,
+                //  and connect that through sharedCorner to the edge into infinity
+
+                val cnx = corners.getPointX(bestCorner)
+                val cny = corners.getPointY(bestCorner)
+
+                var dirX = cx - cnx
+                var dirY = cy - cny
+
+                // may be flipped -> flip it back
+                if (dirX * (cx - size * 0.5f) + dirY * (cy - size * 0.5f) < 0f) {
+                    dirX = -dirX
+                    dirY = -dirY
+                }
+
+                // calculate length
+                val epsilon = 1e-4f
+                val lenX =
+                    if (dirX < -epsilon) -cx / dirX
+                    else if (dirX > epsilon) (size - cx) / dirX
+                    else Float.POSITIVE_INFINITY
+                val lenY =
+                    if (dirY < -epsilon) -cy / dirY
+                    else if (dirY > epsilon) (size - cy) / dirY
+                    else Float.POSITIVE_INFINITY
+
+                // calculate hit on edge
+                val hitX = if (lenX < lenY) if (dirX < 0f) 0f else size else (cx + dirX * lenY)
+                val hitY = if (lenX < lenY) (cy + dirY * lenX) else if (dirY < 0f) 0f else size
+
+                edgesToBorder.add(ToBorder(cellA, cellB, bestCorner, hitX, hitY))
+
+            }
+
+            @Suppress("AssignedValueIsNeverRead") // Intellij is lying
+            cellA = cellB
         }
+
+        for (x in 0 until numPointsX) onBorderPixel(x, 0)
+        for (y in 0 until numPointsY) onBorderPixel(numPointsX - 1, y)
+        for (x in numPointsX - 1 downTo 0) onBorderPixel(x, numPointsY - 1)
+        for (y in numPointsY - 1 downTo 0) onBorderPixel(0, y)
+
+        if (edgesToBorder.isEmpty()) return
+
+        println("Adding ${edgesToBorder.size} edges/corners to the border (${corners.size} corners + ${edges.size} edges)")
+
+        var edge = edges.size
+        var corner = corners.size
+        corners.resize(corners.size + edgesToBorder.size)
+        edges.resize(edges.size + edgesToBorder.size)
+
+        // todo connect borders at the top (need to check ai and bi of neighboring results)
+
+        for (i in edgesToBorder.indices) {
+            val toBorder = edgesToBorder[i]
+            val cellA = toBorder.cellA
+            val cellB = toBorder.cellB
+
+            edges.setCornerA(edge, toBorder.cornerA)
+            edges.setCornerB(edge, corner) // new corner
+            edges.setCellA(edge, cellA)
+            edges.setCellB(edge, cellB)
+
+            corners.setPoint(corner, toBorder.posX, toBorder.posY)
+            corners.setBorder(corner, true)
+
+            corners.edges.add(corner, edge)
+            cells.corners.add(cellA, corner)
+            cells.corners.add(cellB, corner)
+            cells.edges.add(cellA, edge)
+            cells.edges.add(cellB, edge)
+            cells.neighbors.addUnique(cellA, cellB)
+            cells.neighbors.addUnique(cellB, cellA)
+
+            corner++
+            edge++
+        }
+
     }
 
     private fun cornerNeighbors(edges: EdgeList, corners: CornerList) {
-        for (c in 0 until edges.size) {
+        for (c in edges.indices) {
             val corner1 = edges.getCornerA(c)
             val corner2 = edges.getCornerB(c)
             if (corner1 >= 0 && corner2 >= 0 && corner1 != corner2) {
                 corners.neighbors.addUnique(corner1, corner2)
                 corners.neighbors.addUnique(corner2, corner1)
             }
-        }
-    }
-
-    private fun cornerEdges(
-        edgeData: IntArrayList, cells: CellList,
-        corners: CornerList, cornerData: IntArrayList
-    ): EdgeList {
-        val doneEdges = LongToIntHashMap(-1)
-        val edges = EdgeList(edgeData.size)
-        var edge = 0
-
-        fun addEdge(ai: Int, bi: Int, cornerIndex: Int) {
-
-            val key = key(ai, bi)
-            val prevCorner = doneEdges.put(key, edge) // overriding is fine, because we won't do it again
-            if (prevCorner == -1) {
-
-                cells.neighbors.addUnique(ai, bi)
-                cells.neighbors.addUnique(bi, ai)
-
-                edges.setCellA(edge, ai)
-                edges.setCellB(edge, bi)
-                edges.setCornerA(edge, cornerIndex)
-                edges.setCornerB(edge, -1)
-
-                cells.edges.add(ai, edge)
-                cells.edges.add(bi, edge)
-                corners.edges.add(cornerIndex, edge)
-
-                edge++
-            } else {
-                edges.setCornerB(prevCorner, cornerIndex)
-            }
-        }
-
-        forLoopSafely(cornerData.size, 6) { i ->
-
-            val ai = cornerData[i]
-            val bi = cornerData[i + 1]
-            val ci = cornerData[i + 2]
-
-            val corner = cornerData[i + 3]
-            addEdge(ai, bi, corner)
-            addEdge(bi, ci, corner)
-            addEdge(ci, ai, corner)
-        }
-
-        return edges
-    }
-
-    private fun cornerVertices(
-        cells: CellList, corners: CornerList,
-        cornerData: IntArrayList
-    ) {
-
-        fun addVertex(ai: Int, corner: Int) {
-            corners.cells.add(corner, ai)
-            cells.corners.add(ai, corner)
-        }
-
-        forLoopSafely(cornerData.size, 6) { i ->
-            val ai = cornerData[i]
-            val bi = cornerData[i + 1]
-            val ci = cornerData[i + 2]
-
-            val corner = cornerData[i + 3]
-            addVertex(ai, corner)
-            addVertex(bi, corner)
-            addVertex(ci, corner)
         }
     }
 }

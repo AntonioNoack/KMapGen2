@@ -27,7 +27,7 @@ fun generateObjFileFromCorners(map: GeneratedMap, mapSize: Float) {
     var vi = 1
     val scaleY = mapSize * 0.05f
     var lastBiome: Biome? = null
-    for (c in 0 until cells.size) {
+    for (c in cells.indices) {
         val biome = cells.getBiome(c)
         if (biome != lastBiome) {
             obj.append("usemtl ").append(biome.name).append('\n')

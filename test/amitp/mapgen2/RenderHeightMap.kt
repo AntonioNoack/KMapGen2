@@ -17,7 +17,7 @@ fun renderHeightMap(map: GeneratedMap, size: Int): BufferedImage {
     val xs = IntArray(16)
     val ys = IntArray(16)
     val colors = Array(256) { Color(it, it, it) }
-    for (i in 0 until cells.size) {
+    for (i in cells.indices) {
 
         // Compute polygon centroid
         var avgElevation = 0f
