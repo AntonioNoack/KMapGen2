@@ -14,6 +14,7 @@ import me.anno.image.raw.IntImage
 import me.anno.utils.Clock
 import me.anno.utils.Color.r
 import me.anno.utils.OS
+import org.joml.Vector2f
 import java.io.File
 import javax.imageio.ImageIO
 import kotlin.random.Random
@@ -26,8 +27,8 @@ val desktop = File(home, "Desktop")
  * */
 fun main() {
 
-    val mapSize = 1000f
-    val numPoints = 1000
+    val mapSize = Vector2f(1000f)
+    val numPoints = 10000
     val variant = 4284L
 
     val clock = Clock("VisualTest")
@@ -39,7 +40,7 @@ fun main() {
     val map = MapGen2.generate(
         mapSize,
         PerlinIslandShape(8541),
-        VoronoiGraphBuilder(points, true),
+        VoronoiGraphBuilder(points, false),
         numPoints, variant
     )
     clock.stop("Generating Map")
@@ -53,7 +54,7 @@ fun main() {
     ImageIO.write(renderBiomeMap(map, mapSize), "PNG", File(desktop, "test_map.png"))
     clock.stop("Render BiomeMap")
 
-    ImageIO.write(renderHeightMap(map, mapSize.toInt()), "PNG", File(desktop, "test_height.png"))
+    ImageIO.write(renderHeightMap(map, mapSize.x.toInt()), "PNG", File(desktop, "test_height.png"))
     clock.stop("Render HeightMap")
 
     val noisyEdges = NoisyEdges.generateNoisyEdges(map, Random(variant))
@@ -84,9 +85,9 @@ fun main() {
 }
 
 fun testRasterizeRivers(map: GeneratedMap, biomes: ByteImage) {
-    MapRasterizer.rasterizeRiversOntoBiomes(map, 1f, 3f, biomes)
-    MapRasterizer.rasterizeLavaOntoBiomes(map, 1f, 2f, biomes)
-    MapRasterizer.rasterizeRoadsOntoBiomes(map, 1f, 1.5f, biomes)
+    MapRasterizer.rasterizeRiversOntoBiomes(map, Vector2f(1f), 3f, biomes)
+    MapRasterizer.rasterizeLavaOntoBiomes(map, Vector2f(1f), 2f, biomes)
+    MapRasterizer.rasterizeRoadsOntoBiomes(map, Vector2f(1f), 1.5f, biomes)
 
     val colors = IntImage(biomes.width, biomes.height, false)
     val biomeColors = Biome.entries.map { it.debugColor }.toIntArray()

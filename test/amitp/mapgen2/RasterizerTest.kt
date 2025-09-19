@@ -5,9 +5,10 @@ import me.anno.image.raw.ByteImage
 import me.anno.image.raw.IntImage
 import me.anno.utils.Color.r
 import me.anno.utils.OS
+import org.joml.Vector2f
 
 fun testBiomeRasterizer(map: GeneratedMap): ByteImage {
-    val biomes = MapRasterizer.rasterizeBiomes(map, 1f)
+    val biomes = MapRasterizer.rasterizeBiomes(map, Vector2f(1f))
     val colors = IntImage(biomes.width, biomes.height, false)
     val biomeColors = Biome.entries.map { it.debugColor }.toIntArray()
     biomes.forEachPixel { x, y ->
@@ -18,11 +19,11 @@ fun testBiomeRasterizer(map: GeneratedMap): ByteImage {
 }
 
 fun testHeightRasterizer(map: GeneratedMap) {
-    MapRasterizer.rasterizeHeight(map, 1f)
+    MapRasterizer.rasterizeHeight(map, Vector2f(1f))
         .write(OS.desktop.getChild("raster-height.png"))
 }
 
 fun testMoistureRasterizer(map: GeneratedMap) {
-    MapRasterizer.rasterizeMoisture(map, 1f)
+    MapRasterizer.rasterizeMoisture(map, Vector2f(1f))
         .write(OS.desktop.getChild("raster-moisture.png"))
 }

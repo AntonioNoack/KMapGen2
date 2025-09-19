@@ -2,12 +2,13 @@ package amitp.mapgen2
 
 import amitp.mapgen2.decoration.NoisyEdges
 import me.anno.utils.algorithms.ForLoop.forLoopSafely
+import org.joml.Vector2f
 import java.awt.Color
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 
-fun renderNoisyEdges(noisyEdges: NoisyEdges, mapSize: Float): BufferedImage {
-    val img = BufferedImage(mapSize.toInt(), mapSize.toInt(), BufferedImage.TYPE_INT_ARGB)
+fun renderNoisyEdges(noisyEdges: NoisyEdges, mapSize: Vector2f): BufferedImage {
+    val img = BufferedImage(mapSize.x.toInt(), mapSize.y.toInt(), BufferedImage.TYPE_INT_ARGB)
     val g = img.createGraphics()
 
     // Optional: anti-aliasing

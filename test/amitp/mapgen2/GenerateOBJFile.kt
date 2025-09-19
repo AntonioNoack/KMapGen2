@@ -4,9 +4,11 @@ import me.anno.maths.Maths.pow
 import me.anno.utils.Color.b01
 import me.anno.utils.Color.g01
 import me.anno.utils.Color.r01
+import org.joml.Vector2f
 import java.io.File
+import kotlin.math.min
 
-fun generateObjFileFromCorners(map: GeneratedMap, mapSize: Float) {
+fun generateObjFileFromCorners(map: GeneratedMap, mapSize: Vector2f) {
     val corners = map.corners
     val cells = map.cells
 
@@ -25,7 +27,7 @@ fun generateObjFileFromCorners(map: GeneratedMap, mapSize: Float) {
     obj.append("# Wavefront obj\n")
         .append("mtllib map.mtl\n")
     var vi = 1
-    val scaleY = mapSize * 0.05f
+    val scaleY = min(mapSize.x, mapSize.y) * 0.05f
     var lastBiome: Biome? = null
     for (c in cells.indices) {
         val biome = cells.getBiome(c)

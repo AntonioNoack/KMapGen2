@@ -24,7 +24,7 @@ object MapGen2 {
     const val LAKE_THRESHOLD = 0.3
 
     fun generate(
-        size: Float,
+        size: Vector2f,
         islandShape: IslandShape,
         graphBuilder: GraphBuilder,
         numPoints: Int,
@@ -75,10 +75,10 @@ object MapGen2 {
         // edges don't store any references
     }
 
-    fun buildGraph(graphBuilder: GraphBuilder, numPoints: Int, mapRandom: Random, size: Float): GeneratedMap =
+    fun buildGraph(graphBuilder: GraphBuilder, numPoints: Int, mapRandom: Random, size: Vector2f): GeneratedMap =
         graphBuilder.buildGraph(size, numPoints, mapRandom.nextLong())
 
-    fun assignElevations(islandShape: IslandShape, graph: GeneratedMap, size: Float) {
+    fun assignElevations(islandShape: IslandShape, graph: GeneratedMap, size: Vector2f) {
         assignCornerElevations(islandShape, graph.corners, size)
         assignOceanCoastAndLand(graph.cells, graph.corners)
         redistributeElevations(graph.corners, landCorners(graph.corners))
@@ -240,15 +240,15 @@ object MapGen2 {
         return result
     }
 
-    fun assignCornerElevations(islandShape: IslandShape, corners: CornerList, size: Float) {
+    fun assignCornerElevations(islandShape: IslandShape, corners: CornerList, size: Vector2f) {
         val queue: ArrayDeque<Int> = ArrayDeque()
 
         // Initialize border corners
-        val invSize = 1f / size
+        val invSizeX2 = Vector2f(2f / size.x, 2f / size.y)
         for (c in corners.indices) {
             corners.setWater(
                 c, !inside(
-                    islandShape, invSize,
+                    islandShape, invSizeX2,
                     Vector2f(corners.getPointX(c), corners.getPointY(c))
                 )
             )
@@ -491,9 +491,9 @@ object MapGen2 {
         return -1
     }
 
-    fun inside(islandShape: IslandShape, invSize: Float, p: Vector2f): Boolean {
-        val nx = p.x * invSize * 2f - 1f
-        val ny = p.y * invSize * 2f - 1f
+    fun inside(islandShape: IslandShape, invSizeX2: Vector2f, p: Vector2f): Boolean {
+        val nx = p.x * invSizeX2.x - 1f
+        val ny = p.y * invSizeX2.y - 1f
         return islandShape.isOnLand(nx, ny)
     }
 

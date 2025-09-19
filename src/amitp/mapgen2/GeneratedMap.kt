@@ -3,6 +3,7 @@ package amitp.mapgen2
 import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
 import amitp.mapgen2.structures.EdgeList
+import org.joml.Vector2f
 
 /**
  * This is the result of the algorithm:
@@ -13,5 +14,5 @@ class GeneratedMap(
     val cells: CellList,
     val corners: CornerList,
     val edges: EdgeList,
-    val size: Float
+    val size: Vector2f
 )

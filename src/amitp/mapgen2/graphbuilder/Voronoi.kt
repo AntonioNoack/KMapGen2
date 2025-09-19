@@ -15,9 +15,6 @@ import kotlin.math.sqrt
 
 /** ---------- Voronoi implementation using Bowyer-Watson Delaunay ----------
  *
- * todo use a faster algorithm, e.g. we could use that we generate our points from a grid,
- *   or just in general create a vertex/triangle lookup...
- *
  * Produces Delaunay triangles, computes circumcenters and uses them to
  * form Voronoi vertices and Voronoi edges. This is not a high-performance
  * computational-geometry library, but it is robust enough for map generation.
@@ -30,7 +27,7 @@ import kotlin.math.sqrt
  * VEdge.regionL / regionR are indices into the original sites list (or null).
  * VEdge.vertexA / vertexB are circumcenters (Points) - may be null for hull edges.
  */
-class Voronoi(points: FloatArray, bboxSize: Float) {
+class Voronoi(points: FloatArray, bboxSize: Vector2f) {
 
     companion object {
         private val nan = Vector2f(Float.NaN)
@@ -146,7 +143,7 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
     }
 
     // Build Delaunay triangulation: returns (triangles, adjacency map)
-    private fun buildDelaunay(points: FloatArray, bbox: Float):
+    private fun buildDelaunay(points: FloatArray, bbox: Vector2f):
             Pair<List<Triangle>, LongToLongHashMap> {
 
         if (points.size < 3) return Pair(emptyList(), LongToLongHashMap(-1))
@@ -154,17 +151,18 @@ class Voronoi(points: FloatArray, bboxSize: Float) {
         val triangleLookup = TriangleLookup()
 
         // Super-triangle: big triangle that contains all points
-        val s = bbox * 100f // large enough
+        val sx = bbox.x * 100f // large enough
+        val sy = bbox.y * 100f // large enough
 
         // We'll operate on an indexed points array: original pts plus super-triangle vertices
         val allPts = points.copyOf(points.size + 6)
         // choose triangle vertices as three points outside bounding box
-        allPts[points.size] = -s
-        allPts[points.size + 1] = -s
-        allPts[points.size + 2] = s
-        allPts[points.size + 3] = -s
+        allPts[points.size] = -sx
+        allPts[points.size + 1] = -sy
+        allPts[points.size + 2] = sx
+        allPts[points.size + 3] = -sy
         allPts[points.size + 4] = 0f
-        allPts[points.size + 5] = s * 2f
+        allPts[points.size + 5] = sy * 2f
 
         val idxA = points.size shr 1
 

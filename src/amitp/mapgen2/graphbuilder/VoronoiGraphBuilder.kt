@@ -10,7 +10,9 @@ import me.anno.maths.Packing.pack64
 import me.anno.maths.Packing.unpackHighFrom64
 import me.anno.maths.Packing.unpackLowFrom64
 import me.anno.utils.Clock
+import me.anno.utils.algorithms.ForLoop.forLoopSafely
 import org.apache.logging.log4j.LogManager
+import org.joml.Vector2f
 import speiger.primitivecollections.LongToIntHashMap
 
 class VoronoiGraphBuilder(
@@ -21,7 +23,7 @@ class VoronoiGraphBuilder(
     companion object {
         private val LOGGER = LogManager.getLogger(VoronoiGraphBuilder::class)
 
-        fun buildGraph(points: FloatArray, voronoi: Voronoi, size: Float): GeneratedMap {
+        fun buildGraph(points: FloatArray, voronoi: Voronoi, size: Vector2f): GeneratedMap {
 
             // Create Cell objects for each point
             val cells = CellList(points.size shr 1)
@@ -57,7 +59,7 @@ class VoronoiGraphBuilder(
                 val px = Float.fromBits(unpackHighFrom64(pos))
                 val py = Float.fromBits(unpackLowFrom64(pos))
                 cornerList.setPoint(i, px, py)
-                cornerList.setBorder(i, px <= 0f || px >= size || py <= 0f || py >= size)
+                cornerList.setBorder(i, px <= 0f || px >= size.x || py <= 0f || py >= size.y)
             }
 
             for (edgeIndex in 0 until edges0.size) {
@@ -118,7 +120,7 @@ class VoronoiGraphBuilder(
 
     }
 
-    override fun buildGraph(size: Float, numCells: Int, seed: Long): GeneratedMap {
+    override fun buildGraph(size: Vector2f, numCells: Int, seed: Long): GeneratedMap {
         val clock = Clock(LOGGER)
         val points = pointSelector.select(size, numCells, seed)
         clock.stop("Generate Points")
@@ -164,7 +166,7 @@ class VoronoiGraphBuilder(
      * edges become longer. Long edges tend to become shorter. The
      * polygons tend to be more uniform after this step.
      * */
-    private fun improveCorners(cells: CellList, corners: CornerList, size: Float) {
+    private fun improveCorners(cells: CellList, corners: CornerList, size: Vector2f) {
         val newCorners = FloatArray(corners.size shl 1)
         for (q in corners.indices) {
             if (corners.isBorder(q)) {
@@ -181,8 +183,9 @@ class VoronoiGraphBuilder(
                 newCorners[q * 2 + 1] = sumY / numTouches
             }
         }
-        for (i in newCorners.indices) {
-            newCorners[i] = clamp(newCorners[i], 0f, size)
+        forLoopSafely(newCorners.size, 2) { i ->
+            newCorners[i] = clamp(newCorners[i], 0f, size.x)
+            newCorners[i + 1] = clamp(newCorners[i + 1], 0f, size.y)
         }
         corners.setPoints(newCorners)
     }

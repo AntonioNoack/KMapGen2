@@ -54,9 +54,9 @@ class GridVoronoiTest {
         // generate centers
         // use grid-voronoi and baseline
         // todo compare all corners and edges, which are within the defined bounds
-        val n = 1000
-        val size = 1000f
-        val points = GridPointSelector(0.7f).select(size, n, 8541)
+        val n = 100
+        val size = Vector2f(1000f)
+        val points = GridPointSelector(0.9f).select(size, n, 8541)
 
         val grid = GridVoronoi(points, size)
         val actual = grid.map
@@ -84,7 +84,7 @@ class GridVoronoiTest {
             forEachCell(expected.corners, corner) { v1, v2, v3 ->
                 val key = Vector3i(v1, v2, v3)
                 if (key !in actualCorners) {
-                    if (point.x in 0f..size && point.y in 0f..size) {
+                    if (point.x in 0f..size.x && point.y in 0f..size.y) {
                         failed++
 
                         val cells = ArrayList<Int>()
@@ -103,7 +103,7 @@ class GridVoronoiTest {
 
     }
 
-    fun showGrid(grid: GridVoronoi, size: Float, map: GeneratedMap, name: String) {
+    fun showGrid(grid: GridVoronoi, size: Vector2f, map: GeneratedMap, name: String) {
         val imgSize = 1024
         val img = BufferedImage(imgSize, imgSize, 1)
         val g = img.graphics as Graphics2D
@@ -111,16 +111,19 @@ class GridVoronoiTest {
 
         val corners = map.corners
         val edges = map.edges
-        val scaleI = (imgSize - 1) / size
+        val cells = map.cells
+
+        val scaleX = (imgSize - 1) / size.x
+        val scaleY = (imgSize - 1) / size.y
         for (edge in edges.indices) {
             val v0 = edges.getCornerA(edge)
             val v1 = edges.getCornerB(edge)
             if (v0 < 0 || v1 < 0) continue
 
-            val x0 = (corners.getPointX(v0) * scaleI).toInt()
-            val y0 = (corners.getPointY(v0) * scaleI).toInt()
-            val x1 = (corners.getPointX(v1) * scaleI).toInt()
-            val y1 = (corners.getPointY(v1) * scaleI).toInt()
+            val x0 = (corners.getPointX(v0) * scaleX).toInt()
+            val y0 = (corners.getPointY(v0) * scaleY).toInt()
+            val x1 = (corners.getPointX(v1) * scaleX).toInt()
+            val y1 = (corners.getPointY(v1) * scaleY).toInt()
 
             g.color = Color.WHITE
             g.drawLine(x0, y0, x1, y1)
@@ -128,20 +131,43 @@ class GridVoronoiTest {
             g.color = Color.RED
             g.drawRect(x0, y0, 1, 1)
             g.drawRect(x1, y1, 1, 1)
+
+            val xm = (x0 + x1) shr 1
+            val ym = (y0 + y1) shr 1
+
+            g.color = Color.LIGHT_GRAY
+            val cellA = edges.getCellA(edge)
+            val cellB = edges.getCellB(edge)
+            if (cellA >= 0) {
+                val x1 = (cells.getPointX(cellA) * scaleX).toInt()
+                val y1 = (cells.getPointY(cellA) * scaleY).toInt()
+                g.drawLine(xm, ym, x1, y1)
+            }
+            if (cellB >= 0) {
+                val x1 = (cells.getPointX(cellB) * scaleX).toInt()
+                val y1 = (cells.getPointY(cellB) * scaleY).toInt()
+                g.drawLine(xm, ym, x1, y1)
+            }
         }
 
         for (corner in corners.indices) {
-            val x0 = (corners.getPointX(corner) * scaleI).toInt()
-            val y0 = (corners.getPointY(corner) * scaleI).toInt()
+            val x0 = (corners.getPointX(corner) * scaleX).toInt()
+            val y0 = (corners.getPointY(corner) * scaleY).toInt()
 
             g.color = if (corners.isBorder(corner)) Color.MAGENTA else Color.CYAN
             g.fillRect(x0 - 1, y0 - 1, 3, 3)
+
+            g.color = Color.GRAY
+            corners.cells.forEach(corner) { cell ->
+                val x1 = (cells.getPointX(cell) * scaleX).toInt()
+                val y1 = (cells.getPointY(cell) * scaleY).toInt()
+                g.drawLine(x0, y0, x1, y1)
+            }
         }
 
-        val cells = map.cells
         for (cell in cells.indices) {
-            val x0 = (cells.getPointX(cell) * scaleI).toInt()
-            val y0 = (cells.getPointY(cell) * scaleI).toInt()
+            val x0 = (cells.getPointX(cell) * scaleX).toInt()
+            val y0 = (cells.getPointY(cell) * scaleY).toInt()
 
             g.color = Color.ORANGE
             g.fillRect(x0 - 1, y0 - 1, 3, 3)

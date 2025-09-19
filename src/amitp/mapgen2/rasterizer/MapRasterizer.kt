@@ -30,14 +30,16 @@ object MapRasterizer {
 
     private const val MAX_VERTICES_PER_POLYGON = 16
 
-    fun rasterizeBiomes(map: GeneratedMap, scale: Float): ByteImage {
-        val size = (map.size * scale).toInt()
-        val result = ByteImage(size, size, ByteImageFormat.R)
+    fun rasterizeBiomes(map: GeneratedMap, scale: Vector2f): ByteImage {
+        val sizeX = (map.size.x * scale.x).toInt()
+        val sizeY = (map.size.y * scale.y).toInt()
+        val result = ByteImage(sizeX, sizeY, ByteImageFormat.R)
 
         val cells = map.cells
         val corners = map.corners
 
-        val invScale = 1f / scale
+        val invScaleX = 1f / scale.x
+        val invScaleY = 1f / scale.y
         val bounds = AABBf()
         val pt = Vector2f()
         val vertices = List(MAX_VERTICES_PER_POLYGON) { Vector3f() }
@@ -56,14 +58,14 @@ object MapRasterizer {
                 numCorners++
             }
 
-            val minX = floor(bounds.minX * scale).toInt()
-            val minY = floor(bounds.minY * scale).toInt()
-            val maxX = ceil(bounds.maxX * scale).toInt()
-            val maxY = ceil(bounds.maxY * scale).toInt()
+            val minX = floor(bounds.minX * scale.x).toInt()
+            val minY = floor(bounds.minY * scale.y).toInt()
+            val maxX = ceil(bounds.maxX * scale.x).toInt()
+            val maxY = ceil(bounds.maxY * scale.y).toInt()
 
             for (y in minY..maxY) {
                 for (x in minX..maxX) {
-                    pt.set(x * invScale, y * invScale)
+                    pt.set(x * invScaleX, y * invScaleY)
                     if (polygonXYContainsPoint(vertices, pt, numCorners)) {
                         result.data[result.getIndex(x, y)] = biomeIndex.toByte()
                     }
@@ -78,7 +80,7 @@ object MapRasterizer {
     // todo river and lava could use some steepness dependency for straightness / extra turns
     // todo for water also render the river depth onto it...
 
-    fun rasterizeRiversOntoBiomes(map: GeneratedMap, scale: Float, riverThickness: Float, biomes: ByteImage) {
+    fun rasterizeRiversOntoBiomes(map: GeneratedMap, scale: Vector2f, riverThickness: Float, biomes: ByteImage) {
         rasterizeLinesOntoBiomes(map, scale, riverThickness, biomes, {
             when (it) {
                 Biome.LAVA, Biome.OBSIDIAN -> Biome.OBSIDIAN
@@ -89,7 +91,7 @@ object MapRasterizer {
         }
     }
 
-    fun rasterizeLavaOntoBiomes(map: GeneratedMap, scale: Float, lavaThickness: Float, biomes: ByteImage) {
+    fun rasterizeLavaOntoBiomes(map: GeneratedMap, scale: Vector2f, lavaThickness: Float, biomes: ByteImage) {
         rasterizeLinesOntoBiomes(map, scale, lavaThickness, biomes, {
             when (it) {
                 Biome.OCEAN, Biome.LAKE, Biome.RIVER, Biome.OBSIDIAN -> Biome.OBSIDIAN
@@ -100,7 +102,7 @@ object MapRasterizer {
         }
     }
 
-    fun rasterizeRoadsOntoBiomes(map: GeneratedMap, scale: Float, roadThickness: Float, biomes: ByteImage) {
+    fun rasterizeRoadsOntoBiomes(map: GeneratedMap, scale: Vector2f, roadThickness: Float, biomes: ByteImage) {
         rasterizeLinesOntoBiomes(map, scale, roadThickness, biomes, {
             when (it) {
                 Biome.OCEAN, Biome.LAKE, Biome.RIVER, Biome.RIVER_BRIDGE -> Biome.RIVER_BRIDGE
@@ -202,7 +204,7 @@ object MapRasterizer {
     }
 
     fun rasterizeLinesOntoBiomes(
-        map: GeneratedMap, scale: Float, lineThickness: Float,
+        map: GeneratedMap, scale: Vector2f, lineThickness: Float,
         biomes: ByteImage, writtenBiome: (Biome) -> Biome, filter: IntPredicate,
     ) {
         val corners = map.corners
@@ -212,10 +214,10 @@ object MapRasterizer {
             val v1 = edges.getCornerB(edge)
             if (v0 < 0 || v1 < 0 || !filter.test(edge)) continue
 
-            val x0 = corners.getPointX(v0) * scale
-            val y0 = corners.getPointY(v0) * scale
-            val x1 = corners.getPointX(v1) * scale
-            val y1 = corners.getPointY(v1) * scale
+            val x0 = corners.getPointX(v0) * scale.x
+            val y0 = corners.getPointY(v0) * scale.y
+            val x1 = corners.getPointX(v1) * scale.x
+            val y1 = corners.getPointY(v1) * scale.y
 
             // could be expensive for diagonal lines...
             val minX = max(floor(min(x0, x1) - lineThickness).toIntOr(), 0)
@@ -249,25 +251,27 @@ object MapRasterizer {
         }
     }
 
-    fun rasterizeHeight(map: GeneratedMap, scale: Float): FloatImage {
+    fun rasterizeHeight(map: GeneratedMap, scale: Vector2f): FloatImage {
         val corners = map.corners
         return rasterizeCornerFloat(map, scale, 0f) { corner -> corners.getElevation(corner) }
     }
 
-    fun rasterizeMoisture(map: GeneratedMap, scale: Float): FloatImage {
+    fun rasterizeMoisture(map: GeneratedMap, scale: Vector2f): FloatImage {
         val corners = map.corners
         return rasterizeCornerFloat(map, scale, 1f) { corner -> corners.getMoisture(corner) }
     }
 
-    fun rasterizeCornerFloat(map: GeneratedMap, scale: Float, default: Float, getFloat: GetFloat): FloatImage {
-        val size = (map.size * scale).toInt()
-        val result = FloatImage(size, size, 1)
+    fun rasterizeCornerFloat(map: GeneratedMap, scale: Vector2f, default: Float, getFloat: GetFloat): FloatImage {
+        val sizeX = (map.size.x * scale.x).toInt()
+        val sizeY = (map.size.y * scale.y).toInt()
+        val result = FloatImage(sizeX, sizeY, 1)
         if (default != 0f) result.data.fill(default)
 
         val cells = map.cells
         val corners = map.corners
 
-        val invScale = 1f / scale
+        val invScaleX = 1f / scale.x
+        val invScaleY = 1f / scale.y
         val bounds = AABBf()
         val pt = Vector2f()
         val vertices = List(MAX_VERTICES_PER_POLYGON) { Vector3f() }
@@ -287,14 +291,14 @@ object MapRasterizer {
                 numCorners++
             }
 
-            val minX = floor(bounds.minX * scale).toInt()
-            val minY = floor(bounds.minY * scale).toInt()
-            val maxX = floor(bounds.maxX * scale).toInt()
-            val maxY = floor(bounds.maxY * scale).toInt()
+            val minX = floor(bounds.minX * scale.x).toInt()
+            val minY = floor(bounds.minY * scale.y).toInt()
+            val maxX = floor(bounds.maxX * scale.x).toInt()
+            val maxY = floor(bounds.maxY * scale.y).toInt()
 
             for (y in minY..maxY) {
                 for (x in minX..maxX) {
-                    pt.set(x * invScale, y * invScale)
+                    pt.set(x * invScaleX, y * invScaleY)
                     if (polygonXYContainsPoint(vertices, pt, numCorners)) {
                         result.data[result.getIndex(x, y)] = interpolateZByXYMeanValue(vertices, pt, numCorners)
                     }

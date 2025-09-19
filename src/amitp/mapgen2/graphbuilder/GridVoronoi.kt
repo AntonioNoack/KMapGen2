@@ -26,7 +26,7 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 
 // todo this doesn't work perfectly yet
-class GridVoronoi(points: FloatArray, val size: Float) {
+class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
     companion object {
         private val LOGGER = LogManager.getLogger(GridVoronoi::class)
@@ -181,7 +181,7 @@ class GridVoronoi(points: FloatArray, val size: Float) {
                 points[ci * 2], points[ci * 2 + 1], tmp
             )
 
-            if (px <= 0f || px >= size || py <= 0f || py >= size) return // out of bounds -> will be handled later
+            if (px <= 0f || px >= size.x || py <= 0f || py >= size.y) return // out of bounds -> will be handled later
 
             val radiusSq = sq(points[ai * 2] - px) + sq(points[ai * 2 + 1] - py)
             if (radiusSq.isFinite()) {
@@ -219,7 +219,7 @@ class GridVoronoi(points: FloatArray, val size: Float) {
         return circleGrid
     }
 
-    private fun findEdges(points: FloatArray, size: Float): GeneratedMap {
+    private fun findEdges(points: FloatArray, size: Vector2f): GeneratedMap {
 
         val cells = CellList(numPoints)
         cells.setPoints(points)
@@ -268,7 +268,7 @@ class GridVoronoi(points: FloatArray, val size: Float) {
             //  there should only be one
 
             // todo we need to find the shortest path from cellA to cellB via corners
-            // todo collect all corners, and pick the one with the most 90° angle to the half-separating axis
+            //  all of the included corners/cells need to be connected to the edge
 
             val aix = cells.getPointX(cellA)
             val aiy = cells.getPointY(cellA)
@@ -319,7 +319,7 @@ class GridVoronoi(points: FloatArray, val size: Float) {
                 var dirY = cy - cny
 
                 // may be flipped -> flip it back
-                if (dirX * (cx - size * 0.5f) + dirY * (cy - size * 0.5f) < 0f) {
+                if (dirX * (cx - size.x * 0.5f) + dirY * (cy - size.y * 0.5f) < 0f) {
                     dirX = -dirX
                     dirY = -dirY
                 }
@@ -328,16 +328,16 @@ class GridVoronoi(points: FloatArray, val size: Float) {
                 val epsilon = 1e-4f
                 val lenX =
                     if (dirX < -epsilon) -cx / dirX
-                    else if (dirX > epsilon) (size - cx) / dirX
+                    else if (dirX > epsilon) (size.x - cx) / dirX
                     else Float.POSITIVE_INFINITY
                 val lenY =
                     if (dirY < -epsilon) -cy / dirY
-                    else if (dirY > epsilon) (size - cy) / dirY
+                    else if (dirY > epsilon) (size.y - cy) / dirY
                     else Float.POSITIVE_INFINITY
 
                 // calculate hit on edge
-                val hitX = if (lenX < lenY) if (dirX < 0f) 0f else size else (cx + dirX * lenY)
-                val hitY = if (lenX < lenY) (cy + dirY * lenX) else if (dirY < 0f) 0f else size
+                val hitX = if (lenX < lenY) if (dirX < 0f) 0f else size.x else (cx + dirX * lenY)
+                val hitY = if (lenX < lenY) (cy + dirY * lenX) else if (dirY < 0f) 0f else size.y
 
                 edgesToBorder.add(ToBorder(cellA, cellB, bestCorner, hitX, hitY))
 
@@ -419,9 +419,16 @@ class GridVoronoi(points: FloatArray, val size: Float) {
             corners.setBorder(corner, true)
 
             corners.edges.add(corner, edgeA)
-            if (edgeB >= 0) corners.edges.add(corner, edgeB)
+            corners.cells.add(corner, cellA)
             cells.corners.add(cellA, corner)
-            if (cellB >= 0) cells.corners.add(cellB, corner)
+
+            if (edgeB >= 0) {
+                corners.edges.add(corner, edgeB)
+            }
+            if (cellB >= 0) {
+                corners.cells.add(corner, cellB)
+                cells.corners.add(cellB, corner)
+            }
 
             corner++
         }
@@ -461,8 +468,8 @@ class GridVoronoi(points: FloatArray, val size: Float) {
                     assertEquals(edge, edgeI + 2)
 
                     // define corner position
-                    val posX = if (corner0.posX == 0f || corner1.posX == 0f) 0f else size
-                    val posY = if (corner0.posY == 0f || corner1.posY == 0f) 0f else size
+                    val posX = if (corner0.posX == 0f || corner1.posX == 0f) 0f else size.x
+                    val posY = if (corner0.posY == 0f || corner1.posY == 0f) 0f else size.y
                     createBorderCorner(posX, posY, cell, -1, edgeI, edgeI + 1)
 
                 } else {

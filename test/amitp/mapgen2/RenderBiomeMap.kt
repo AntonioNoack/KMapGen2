@@ -7,9 +7,9 @@ import java.awt.Color
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 
-fun renderBiomeMap(map: GeneratedMap, mapSize: Float): BufferedImage {
+fun renderBiomeMap(map: GeneratedMap, mapSize: Vector2f): BufferedImage {
 
-    val img = BufferedImage(mapSize.toInt(), mapSize.toInt(), BufferedImage.TYPE_INT_ARGB)
+    val img = BufferedImage(mapSize.x.toInt(), mapSize.y.toInt(), BufferedImage.TYPE_INT_ARGB)
     val g = img.createGraphics()
 
     // Optional: anti-aliasing
