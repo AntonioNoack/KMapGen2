@@ -27,8 +27,8 @@ class CornerList(size: Int) : PointList(size) {
         ints[index * 4 + 3] = value
     }
 
-    override fun resize(newSize: Int) {
-        super.resize(newSize)
+    override fun resizeTo(newSize: Int) {
+        super.resizeTo(newSize)
         ints = ints.copyOf(newSize * 4)
         cells.resizeTo(newSize)
         neighbors.resizeTo(newSize)

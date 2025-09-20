@@ -100,7 +100,8 @@ open class PointList(size: Int) {
         }
     }
 
-    open fun resize(newSize: Int) {
+    open fun resizeTo(newSize: Int) {
+        if (size == newSize) return
         floats = floats.copyOf(newSize * 4)
         flags = flags.copyOf(newSize)
         indices = 0 until newSize

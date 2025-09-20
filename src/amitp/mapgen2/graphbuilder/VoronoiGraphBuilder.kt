@@ -1,6 +1,8 @@
 package amitp.mapgen2.graphbuilder
 
 import amitp.mapgen2.GeneratedMap
+import amitp.mapgen2.graphbuilder.voronoi.GridVoronoi
+import amitp.mapgen2.graphbuilder.voronoi.Voronoi
 import amitp.mapgen2.pointselector.PointSelector
 import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
@@ -140,16 +142,16 @@ class VoronoiGraphBuilder(
     }
 
     private fun printStats(map: GeneratedMap) {
-        val numPoints = map.cells.size
+        val numCells = map.cells.size
         val numCorners = map.corners.size
         val cells = map.cells
         val corners = map.corners
         val edges = map.edges
 
-        LOGGER.info("Stats: [$numPoints cells + $numCorners corners + ${edges.size} edges]")
-        LOGGER.info("Cells.neighbors: ${(0 until numPoints).sumOf { cells.neighbors.getSize(it) }}")
-        LOGGER.info("Cells.corners: ${(0 until numPoints).sumOf { cells.corners.getSize(it) }}")
-        LOGGER.info("Cells.edges: ${(0 until numPoints).sumOf { cells.edges.getSize(it) }}")
+        LOGGER.info("Stats: [$numCells cells + $numCorners corners + ${edges.size} edges]")
+        LOGGER.info("Cells.neighbors: ${(0 until numCells).sumOf { cells.neighbors.getSize(it) }}")
+        LOGGER.info("Cells.corners: ${(0 until numCells).sumOf { cells.corners.getSize(it) }}")
+        LOGGER.info("Cells.edges: ${(0 until numCells).sumOf { cells.edges.getSize(it) }}")
 
         LOGGER.info("Corners.cells: ${(0 until numCorners).sumOf { corners.cells.getSize(it) }}")
         LOGGER.info("Corners.adjacent: ${(0 until numCorners).sumOf { corners.neighbors.getSize(it) }}")

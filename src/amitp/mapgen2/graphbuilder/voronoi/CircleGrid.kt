@@ -1,4 +1,4 @@
-package amitp.mapgen2.graphbuilder
+package amitp.mapgen2.graphbuilder.voronoi
 
 import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
@@ -13,11 +13,12 @@ import me.anno.utils.structures.arrays.FloatArrayList
 import me.anno.utils.structures.arrays.FloatArrayListUtils.add
 import me.anno.utils.structures.arrays.IntArrayList
 import org.joml.AABBf
+import kotlin.collections.iterator
 import kotlin.math.*
 
 class CircleGrid(
-    val numPointsX: Int,
-    val numPointsY: Int,
+    val numCellsX: Int,
+    val numCellsY: Int,
     bounds: AABBf
 ) {
 
@@ -32,10 +33,10 @@ class CircleGrid(
 
     val minX = bounds.minX
     val minY = bounds.minY
-    val invX = numPointsX / max(bounds.deltaX, 1e-38f)
-    val invY = numPointsY / max(bounds.deltaY, 1e-38f)
+    val invX = numCellsX / max(bounds.deltaX, 1e-38f)
+    val invY = numCellsY / max(bounds.deltaY, 1e-38f)
 
-    val gridSize = numPointsX * numPointsY
+    val gridSize = numCellsX * numCellsY
     val circumcircleGrid = arrayOfNulls<Circumcircle>(gridSize)
 
     // x,y
@@ -56,15 +57,15 @@ class CircleGrid(
     var statsNormal = 0
 
     fun addCell(cellX: Float, cellY: Float) {
-        val gx = clamp(((cellX - minX) * invX).toInt(), 0, numPointsX - 1)
-        val gy = clamp(((cellY - minY) * invY).toInt(), 0, numPointsY - 1)
-        val gridIndex = gx + gy * numPointsX
+        val gx = clamp(((cellX - minX) * invX).toInt(), 0, numCellsX - 1)
+        val gy = clamp(((cellY - minY) * invY).toInt(), 0, numCellsY - 1)
+        val gridIndex = gx + gy * numCellsX
         if (cellGrid[gridIndex * 2] != invalidCellPos) {
 
             // look for a nearby empty cell
             for (gyi in gy - 1..gy + 1) {
                 for (gxi in gx - 1..gx + 1) {
-                    val gridIndexI = gxi + gyi * numPointsX
+                    val gridIndexI = gxi + gyi * numCellsX
                     if (cellGrid[gridIndexI * 2] == invalidCellPos) {
                         cellGrid[gridIndexI * 2] = cellX
                         cellGrid[gridIndexI * 2 + 1] = cellY
@@ -98,14 +99,14 @@ class CircleGrid(
         cellA: Int, cellB: Int, cellC: Int
     ) {
 
-        val gx = clamp(((circleX - minX) * invX).toInt(), 0, numPointsX - 1)
-        val gy = clamp(((circleY - minY) * invY).toInt(), 0, numPointsY - 1)
+        val gx = clamp(((circleX - minX) * invX).toInt(), 0, numCellsX - 1)
+        val gy = clamp(((circleY - minY) * invY).toInt(), 0, numCellsY - 1)
 
         // check whether out corner already exists
         val minX0 = max(gx - 1, 0)
         val minY0 = max(gy - 1, 0)
-        val maxX0 = min(gx + 1, numPointsX - 1)
-        val maxY0 = min(gy + 1, numPointsY - 1)
+        val maxX0 = min(gx + 1, numCellsX - 1)
+        val maxY0 = min(gy + 1, numCellsY - 1)
 
         val watched = setOf(cellA, cellB, cellC) == setOf(2, 8, 36)
         if (watched) println("Found watched cell: $circleX,$circleY, radius ${sqrt(circleRadiusSq)}")
@@ -115,7 +116,7 @@ class CircleGrid(
         val epsilon = 1e-3f // todo make depend on scale
         for (y in minY0..maxY0) {
             for (x in minX0..maxX0) {
-                val gridIndex = x + y * numPointsX
+                val gridIndex = x + y * numCellsX
                 var gridCircle = circumcircleGrid[gridIndex]
                 while (gridCircle != null) {
 
@@ -145,14 +146,14 @@ class CircleGrid(
         val circleRadius = sqrt(circleRadiusSq)
         val minX1 = max(floor((circleX - circleRadius - minX) * invX).toInt() - 1, 0)
         val minY1 = max(floor((circleY - circleRadius - minY) * invY).toInt() - 1, 0)
-        val maxX1 = min(ceil((circleX + circleRadius - minX) * invX).toInt(), numPointsX - 1)
-        val maxY1 = min(ceil((circleY + circleRadius - minY) * invY).toInt(), numPointsY - 1)
+        val maxX1 = min(ceil((circleX + circleRadius - minX) * invX).toInt(), numCellsX - 1)
+        val maxY1 = min(ceil((circleY + circleRadius - minY) * invY).toInt(), numCellsY - 1)
 
         // no circle must contain the center of another circle
         // println("Checking cells...")
         for (y in minY1..maxY1) {
             for (x in minX1..maxX1) {
-                val gridIndex = x + y * numPointsX
+                val gridIndex = x + y * numCellsX
                 val gridCircleX = cellGrid[gridIndex * 2]
                 val gridCircleY = cellGrid[gridIndex * 2 + 1]
                 val dx = gridCircleX - circleX
@@ -203,7 +204,7 @@ class CircleGrid(
         val newCircle = Circumcircle(circleX, circleY, circleRadiusSq)
         addToCircumcircle(newCircle, cellA, cellB, cellC)
 
-        val gridIndex = gx + gy * numPointsX
+        val gridIndex = gx + gy * numCellsX
         newCircle.next = circumcircleGrid[gridIndex]
         circumcircleGrid[gridIndex] = newCircle
     }

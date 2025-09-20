@@ -32,6 +32,10 @@ class EdgeList(size: Int) {
         ints[index.shl(2) + 3] = value
     }
 
+    fun fillEmpty() {
+        ints.fill(-1)
+    }
+
     fun hasRiver(index: Int): Boolean = flags[index].toInt().hasFlag(FLAG_RIVER)
     fun setRiver(index: Int) {
         flags[index] = (flags[index].toInt() or FLAG_RIVER).toByte()

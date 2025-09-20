@@ -3,7 +3,9 @@ package amitp.mapgen2
 import amitp.mapgen2.decoration.Lava
 import amitp.mapgen2.decoration.NoisyEdges
 import amitp.mapgen2.decoration.Roads
+import amitp.mapgen2.graphbuilder.GraphBuilder
 import amitp.mapgen2.graphbuilder.VoronoiGraphBuilder
+import amitp.mapgen2.graphbuilder.perfect.HexHexagonGridBuilder
 import amitp.mapgen2.islandshapes.PerlinIslandShape
 import amitp.mapgen2.pointselector.GridPointSelector
 import amitp.mapgen2.pointselector.RandomPointSelector
@@ -28,20 +30,22 @@ val desktop = File(home, "Desktop")
 fun main() {
 
     val mapSize = Vector2f(1000f)
-    val numPoints = 10000
+    val numCells = 10000
     val variant = 4284L
 
     val clock = Clock("VisualTest")
     OfficialExtensions.initForTests() // for png export
 
     val points = if (false) RandomPointSelector
-    else GridPointSelector(0.7f)
+    else if (false) GridPointSelector(0.7f)
+    else HexHexagonGridBuilder()
 
     val map = MapGen2.generate(
         mapSize,
         PerlinIslandShape(8541),
-        VoronoiGraphBuilder(points, false),
-        numPoints, variant
+        points as? GraphBuilder
+            ?: VoronoiGraphBuilder(points, false),
+        numCells, variant
     )
     clock.stop("Generating Map")
 

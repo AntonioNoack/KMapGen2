@@ -5,9 +5,9 @@ import org.joml.Vector2f
 import kotlin.random.Random
 
 object RandomPointSelector : PointSelector {
-    override fun select(size: Vector2f, numPoints: Int, seed: Long): FloatArray {
+    override fun select(size: Vector2f, numCells: Int, seed: Long): FloatArray {
         val rng = Random(seed)
-        val dst = FloatArray(numPoints * 2)
+        val dst = FloatArray(numCells * 2)
         forLoopSafely(dst.size, 2) { i ->
             dst[i] = rng.nextFloat() * size.x
             dst[i + 1] = rng.nextFloat() * size.y

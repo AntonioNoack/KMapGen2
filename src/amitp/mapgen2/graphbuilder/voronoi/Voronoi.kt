@@ -1,4 +1,4 @@
-package amitp.mapgen2.graphbuilder
+package amitp.mapgen2.graphbuilder.voronoi
 
 import amitp.mapgen2.structures.VEdgeList
 import me.anno.graph.octtree.QuadTreeF

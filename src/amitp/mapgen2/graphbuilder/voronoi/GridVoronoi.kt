@@ -1,7 +1,6 @@
-package amitp.mapgen2.graphbuilder
+package amitp.mapgen2.graphbuilder.voronoi
 
 import amitp.mapgen2.GeneratedMap
-import amitp.mapgen2.graphbuilder.Voronoi.Triangle.Companion.circumcenter
 import amitp.mapgen2.structures.CellList
 import amitp.mapgen2.structures.CornerList
 import amitp.mapgen2.structures.EdgeList
@@ -32,7 +31,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
         private val LOGGER = LogManager.getLogger(GridVoronoi::class)
     }
 
-    private val numPoints = points.size shr 1
+    private val numCells = points.size shr 1
     val clock = Clock(LOGGER)
 
     private fun findBounds(points: FloatArray): AABBf {
@@ -42,8 +41,8 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
         }
         val extra = 0.5f
         bounds.addMargin(
-            bounds.deltaX * extra / numPointsX,
-            bounds.deltaY * extra / numPointsY, 0f
+            bounds.deltaX * extra / numCellsX,
+            bounds.deltaY * extra / numCellsY, 0f
         )
         clock.stop("Bounds")
         return bounds
@@ -52,9 +51,9 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
     val maxRadius = 10
     val scale = 20 // at max (maxRadius/4 + 1.5)²
 
-    val numPointsX = max(sqrt(numPoints * scale.toFloat()).toInt(), 3)
-    val numPointsY = max((numPoints * scale) / numPointsX, 3)
-    private val gridSize = numPointsX * numPointsY
+    val numCellsX = max(sqrt(numCells * scale.toFloat()).toInt(), 3)
+    val numCellsY = max((numCells * scale) / numCellsX, 3)
+    private val gridSize = numCellsX * numCellsY
 
     private val bounds = findBounds(points)
 
@@ -66,8 +65,8 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
         closest.fill(-1)
     }
 
-    private val gridX = defineGrid(numPointsX, bounds.minX, bounds.maxX)
-    private val gridY = defineGrid(numPointsY, bounds.minY, bounds.maxY)
+    private val gridX = defineGrid(numCellsX, bounds.minX, bounds.maxX)
+    private val gridY = defineGrid(numCellsY, bounds.minY, bounds.maxY)
 
     init {
         insertInitialDistances(points)
@@ -77,10 +76,10 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
     val map = findEdges(points, size)
 
     private fun debugShowIndices() {
-        val image = BufferedImage(numPointsX, numPointsY, 1)
-        for (y in 0 until numPointsY) {
-            for (x in 0 until numPointsX) {
-                val id = closest[x + y * numPointsX]
+        val image = BufferedImage(numCellsX, numCellsY, 1)
+        for (y in 0 until numCellsY) {
+            for (x in 0 until numCellsX) {
+                val id = closest[x + y * numCellsX]
                 val color = if (false) Random(id.toLong()).nextInt() else
                     Random(id.toLong()).nextInt().and(0xffff00) or id.and(255)
                 image.setRGB(x, y, color)
@@ -102,8 +101,8 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
         val minX = bounds.minX
         val minY = bounds.minY
-        val invX = numPointsX / max(bounds.deltaX, 1e-38f)
-        val invY = numPointsY / max(bounds.deltaY, 1e-38f)
+        val invX = numCellsX / max(bounds.deltaX, 1e-38f)
+        val invY = numCellsY / max(bounds.deltaY, 1e-38f)
 
         println("min,inv: $minX,$minY,$invX,$invY")
         val maxMinDist = 1f / (invX * invX) + 1f / (invY * invY)
@@ -120,11 +119,11 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
             fun checkAdd(dxi: Int, dyi: Int) {
                 val xi = gx + dxi
                 val yi = gy + dyi
-                if (xi !in 0 until numPointsX || yi !in 0 until numPointsY) return
+                if (xi !in 0 until numCellsX || yi !in 0 until numCellsY) return
                 val dx = gridX[xi] - px
                 val dy = gridY[yi] - py
                 val distSq = dx * dx + dy * dy
-                val cellIndex = xi + yi * numPointsX
+                val cellIndex = xi + yi * numCellsX
                 minDist1 = min(minDist1, distSq)
                 if (distSq < distancesSq[cellIndex]) {
                     distancesSq[cellIndex] = distSq
@@ -152,7 +151,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
             }
 
             if (!anyAdded) {
-                val cellIndex = gx + gy * numPointsX
+                val cellIndex = gx + gy * numCellsX
                 val prev = closest[cellIndex]
                 val prevDist = distancesSq[cellIndex]
                 closest[cellIndex] = pi shr 1
@@ -166,7 +165,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
     }
 
     private fun findCornersAndEdges(points: FloatArray): CircleGrid {
-        val circleGrid = CircleGrid(numPointsX, numPointsY, bounds)
+        val circleGrid = CircleGrid(numCellsX, numCellsY, bounds)
 
         forLoopSafely(points.size, 2) { i ->
             circleGrid.addCell(points[i], points[i + 1])
@@ -175,7 +174,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
         val tmp = Vector2f()
         fun onCorner(ai: Int, bi: Int, ci: Int) {
-            val (px, py) = circumcenter(
+            val (px, py) = Voronoi.Triangle.Companion.circumcenter(
                 points[ai * 2], points[ai * 2 + 1],
                 points[bi * 2], points[bi * 2 + 1],
                 points[ci * 2], points[ci * 2 + 1], tmp
@@ -191,12 +190,12 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
         // iterate over center
         val unique = IntArrayList()
-        for (yi in 0 until numPointsY - 2) {
-            for (xi in 0 until numPointsX - 2) {
-                val cellIndex = xi + yi * numPointsX
+        for (yi in 0 until numCellsY - 2) {
+            for (xi in 0 until numCellsX - 2) {
+                val cellIndex = xi + yi * numCellsX
                 for (dy in 0 until 3) {
                     for (dx in 0 until 3) {
-                        val ai = closest[cellIndex + dx + dy * numPointsX]
+                        val ai = closest[cellIndex + dx + dy * numCellsX]
                         if (ai != -1 && ai !in unique) unique.add(ai)
                     }
                 }
@@ -221,7 +220,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
     private fun findEdges(points: FloatArray, size: Vector2f): GeneratedMap {
 
-        val cells = CellList(numPoints)
+        val cells = CellList(numCells)
         cells.setPoints(points)
 
         val circleGrid = findCornersAndEdges(points)
@@ -248,10 +247,10 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
         val edgesToBorder = ArrayList<ToBorder>()
 
-        // iterate over border (without max, this would be an expensive O(n²) search, where n ~ numPointsX)
+        // iterate over border (without max, this would be an expensive O(n²) search, where n ~ numCellsX)
         var cellA = -1
         fun onBorderPixel(xi: Int, yi: Int) {
-            val cellIndex = xi + yi * numPointsX
+            val cellIndex = xi + yi * numCellsX
             val cellB = closest[cellIndex]
             if (cellB == -1) return // or should we keep it??? for now assume a filled border
             if (cellB == cellA) return // already seen
@@ -349,10 +348,10 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
             cellA = cellB
         }
 
-        for (x in 0 until numPointsX) onBorderPixel(x, 0)
-        for (y in 0 until numPointsY) onBorderPixel(numPointsX - 1, y)
-        for (x in numPointsX - 1 downTo 0) onBorderPixel(x, numPointsY - 1)
-        for (y in numPointsY - 1 downTo 0) onBorderPixel(0, y)
+        for (x in 0 until numCellsX) onBorderPixel(x, 0)
+        for (y in 0 until numCellsY) onBorderPixel(numCellsX - 1, y)
+        for (x in numCellsX - 1 downTo 0) onBorderPixel(x, numCellsY - 1)
+        for (y in numCellsY - 1 downTo 0) onBorderPixel(0, y)
 
         if (edgesToBorder.isEmpty()) return
 
@@ -387,7 +386,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
         println("Extra corners: $numExtraCorners, extra edges: $numExtraEdges, edges to border: ${edgesToBorder.size}")
 
-        corners.resize(corners.size + numExtraCorners)
+        corners.resizeTo(corners.size + numExtraCorners)
         edges.resize(edges.size + numExtraEdges)
 
         fun createBorderEdge(

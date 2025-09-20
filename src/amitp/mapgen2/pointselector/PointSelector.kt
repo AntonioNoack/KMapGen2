@@ -3,5 +3,5 @@ package amitp.mapgen2.pointselector
 import org.joml.Vector2f
 
 interface PointSelector {
-    fun select(size: Vector2f, numPoints: Int, seed: Long): FloatArray
+    fun select(size: Vector2f, numCells: Int, seed: Long): FloatArray
 }

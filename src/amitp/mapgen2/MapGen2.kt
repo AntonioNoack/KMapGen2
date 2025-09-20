@@ -27,13 +27,13 @@ object MapGen2 {
         size: Vector2f,
         islandShape: IslandShape,
         graphBuilder: GraphBuilder,
-        numPoints: Int,
+        numCells: Int,
         variant: Long
     ): GeneratedMap {
         val mapRandom = Random(variant)
 
         val clock = Clock("MapGen2")
-        val map = buildGraph(graphBuilder, numPoints, mapRandom, size)
+        val map = buildGraph(graphBuilder, numCells, mapRandom, size)
         clock.stop("Build Graph")
 
         assignElevations(islandShape, map, size)
@@ -75,8 +75,8 @@ object MapGen2 {
         // edges don't store any references
     }
 
-    fun buildGraph(graphBuilder: GraphBuilder, numPoints: Int, mapRandom: Random, size: Vector2f): GeneratedMap =
-        graphBuilder.buildGraph(size, numPoints, mapRandom.nextLong())
+    fun buildGraph(graphBuilder: GraphBuilder, numCells: Int, mapRandom: Random, size: Vector2f): GeneratedMap =
+        graphBuilder.buildGraph(size, numCells, mapRandom.nextLong())
 
     fun assignElevations(islandShape: IslandShape, graph: GeneratedMap, size: Vector2f) {
         assignCornerElevations(islandShape, graph.corners, size)
@@ -401,10 +401,10 @@ object MapGen2 {
         }
     }
 
-    fun createRivers(corners: CornerList, edges: EdgeList, numPoints: Int, mapRandom: Random) {
+    fun createRivers(corners: CornerList, edges: EdgeList, numCells: Int, mapRandom: Random) {
         if (corners.size == 0) return
 
-        val maxAttempts = numPoints / 30
+        val maxAttempts = numCells / 30
         repeat(maxAttempts) {
             val q = mapRandom.nextInt(corners.size)
             // Skip unsuitable corners

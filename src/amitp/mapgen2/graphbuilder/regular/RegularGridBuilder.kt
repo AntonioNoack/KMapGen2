@@ -1,7 +1,12 @@
-package amitp.mapgen2.graphbuilder
+package amitp.mapgen2.graphbuilder.regular
 
 import amitp.mapgen2.GeneratedMap
-import amitp.mapgen2.graphbuilder.Voronoi.Triangle.Companion.circumcenter
+import amitp.mapgen2.graphbuilder.GraphBuilder
+import amitp.mapgen2.graphbuilder.perfect.PerfectGridBuilder.Companion.getOffset
+import amitp.mapgen2.graphbuilder.perfect.PerfectGridBuilder.Companion.getScale
+import amitp.mapgen2.graphbuilder.perfect.PerfectGridBuilder.Companion.transform
+import amitp.mapgen2.graphbuilder.voronoi.Voronoi
+import amitp.mapgen2.pointselector.PointSelector
 import me.anno.utils.assertions.assertEquals
 import me.anno.utils.structures.arrays.FloatArrayList
 import me.anno.utils.structures.arrays.FloatArrayListUtils.add
@@ -9,12 +14,11 @@ import me.anno.utils.structures.arrays.IntArrayList
 import org.joml.AABBf
 import org.joml.Vector2f
 import org.joml.Vector2i
-import kotlin.math.min
 
 // todo define a regular grid by defining nodes and neighbors,
 //  and then using N levels of neighbors, and maybe some randomized variation,
 //  generate a regular voronoi-cell grid from it
-abstract class RegularGridBuilder : GraphBuilder {
+abstract class RegularGridBuilder : GraphBuilder, PointSelector {
 
     override fun buildGraph(size: Vector2f, numCells: Int, seed: Long): GeneratedMap {
         val dimensions = chooseDimensions(size.x / size.y, numCells)
@@ -42,13 +46,9 @@ abstract class RegularGridBuilder : GraphBuilder {
 
         assertEquals(cellIndex, totalNumCells)
 
-        val scale = min(size.x / bounds.deltaX, size.y / bounds.deltaY)
-        val offset = Vector2f(-bounds.centerX / scale + size.x * 0.5f, -bounds.centerY / scale + size.y * 0.5f)
-
-        for (i in 0 until totalNumCells) {
-            cellPositions[i * 2] = cellPositions[i * 2] * scale + offset.x
-            cellPositions[i * 2 + 1] = cellPositions[i * 2 + 1] * scale + offset.y
-        }
+        val scale = getScale(size, bounds)
+        val offset = getOffset(size, bounds)
+        transform(cellPositions, scale, offset)
 
         val tmpI = Vector2i()
         val neighbors = IntArrayList(16)
@@ -76,7 +76,7 @@ abstract class RegularGridBuilder : GraphBuilder {
                         val ni = neighbors[i]
                         val nj = neighbors[j]
 
-                        val (cx, cy) = circumcenter(
+                        val (cx, cy) = Voronoi.Triangle.circumcenter(
                             cellPositions[cellIndex * 2],
                             cellPositions[cellIndex * 2 + 1],
                             cellPositions[ni * 2],
@@ -130,4 +130,25 @@ abstract class RegularGridBuilder : GraphBuilder {
 
     abstract fun numNeighbors(dimensions: Vector2i, i: Int, j: Int): Int
     abstract fun getNeighborDelta(dimensions: Vector2i, i: Int, j: Int, linkIndex: Int, dst: Vector2i): Vector2i?
+
+    override fun select(size: Vector2f, numCells: Int, seed: Long): FloatArray {
+        val dimensions = chooseDimensions(size.x / size.y, numCells)
+
+        val totalNumCells = calculateNumberOfCells(dimensions)
+        val cellPositions = FloatArray(totalNumCells * 2)
+
+        var k = 0
+        val pt = Vector2f()
+        for (yi in 0 until dimensions.y) {
+            for (xi in 0 until dimensions.x) {
+                if (getPoint(dimensions, xi, yi, pt) != null) {
+                    cellPositions[k++] = pt.x
+                    cellPositions[k++] = pt.y
+                }
+            }
+        }
+
+        assertEquals(totalNumCells, k shr 1)
+        return cellPositions
+    }
 }

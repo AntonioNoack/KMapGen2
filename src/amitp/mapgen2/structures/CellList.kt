@@ -11,6 +11,13 @@ class CellList(size: Int) : PointList(size) {
         biomes[index] = biome.ordinal.toByte()
     }
 
+    override fun resizeTo(newSize: Int) {
+        super.resizeTo(newSize)
+        neighbors.resizeTo(newSize)
+        corners.resizeTo(newSize)
+        edges.resizeTo(newSize)
+    }
+
     /**
      * neighbor cell indices for each cell, 6 on average
      * */

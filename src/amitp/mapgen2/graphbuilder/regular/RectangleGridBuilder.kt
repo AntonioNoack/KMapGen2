@@ -1,4 +1,4 @@
-package amitp.mapgen2.graphbuilder
+package amitp.mapgen2.graphbuilder.regular
 
 import org.joml.Vector2f
 import org.joml.Vector2i
