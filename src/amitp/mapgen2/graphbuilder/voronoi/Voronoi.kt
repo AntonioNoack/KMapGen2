@@ -5,6 +5,7 @@ import me.anno.graph.octtree.QuadTreeF
 import me.anno.maths.Packing.pack64
 import me.anno.maths.Packing.unpackHighFrom64
 import me.anno.maths.Packing.unpackLowFrom64
+import me.anno.utils.pooling.JomlPools
 import org.joml.Vector2f
 import speiger.primitivecollections.LongToIntHashMap
 import speiger.primitivecollections.LongToLongHashMap
@@ -98,10 +99,16 @@ class Voronoi(points: FloatArray, bboxSize: Vector2f) {
         // constructor factory
         companion object {
 
-            fun of(a: Int, b: Int, c: Int, pts: FloatArray): Triangle {
+            fun of(a: Int, b: Int, c: Int, pts: FloatArray): Triangle? {
                 val pax = pts[a * 2]
                 val pay = pts[a * 2 + 1]
-                val cc = circumcenter(pax, pay, pts[b * 2], pts[b * 2 + 1], pts[c * 2], pts[c * 2 + 1])
+                val tmp = JomlPools.vec2f.borrow()
+                val cc = circumcenter(
+                    pax, pay,
+                    pts[b * 2], pts[b * 2 + 1],
+                    pts[c * 2], pts[c * 2 + 1],
+                    tmp
+                ) ?: return null
                 val dx = cc.x - pax
                 val dy = cc.y - pay
                 val r2 = dx * dx + dy * dy
@@ -112,8 +119,19 @@ class Voronoi(points: FloatArray, bboxSize: Vector2f) {
                 px: Float, py: Float,
                 qx: Float, qy: Float,
                 rx: Float, ry: Float,
-                dst: Vector2f = Vector2f()
-            ): Vector2f {
+                dst: Vector2f
+            ): Vector2f? = circumcenter(
+                px.toDouble(), py.toDouble(),
+                qx.toDouble(), qy.toDouble(),
+                rx.toDouble(), ry.toDouble(), dst
+            )
+
+            fun circumcenter(
+                px: Double, py: Double,
+                qx: Double, qy: Double,
+                rx: Double, ry: Double,
+                dst: Vector2f
+            ): Vector2f? {
                 // compute circumcenter via coordinates
                 val A = qx - px
                 val B = qy - py
@@ -121,11 +139,8 @@ class Voronoi(points: FloatArray, bboxSize: Vector2f) {
                 val D = ry - py
                 val E = A * (px + qx) + B * (py + qy)
                 val F = C * (px + rx) + D * (py + ry)
-                val G = 2f * (A * (ry - qy) - B * (rx - qx))
-                return if (abs(G) < 1e-12f) {
-                    // Collinear or nearly; fallback to large circumcenter far away
-                    dst.set((px + qx + rx) / 3f, (py + qy + ry) / 3f)
-                } else {
+                val G = 2.0 * (A * (ry - qy) - B * (rx - qx))
+                return if (abs(G) < 1e-12) null else {
                     dst.set((D * E - B * F) / G, (A * F - C * E) / G)
                 }
             }
@@ -165,7 +180,7 @@ class Voronoi(points: FloatArray, bboxSize: Vector2f) {
         val idxA = points.size shr 1
 
         // initial triangle
-        val superTri = Triangle.of(idxA, idxA + 1, idxA + 2, allPts)
+        val superTri = Triangle.of(idxA, idxA + 1, idxA + 2, allPts)!!
         triangleLookup.add(superTri)
 
         // Bowyer-Watson incremental insertion
@@ -211,7 +226,8 @@ class Voronoi(points: FloatArray, bboxSize: Vector2f) {
                 if (value == 1) {
                     val a = unpackHighFrom64(key)
                     val b = unpackLowFrom64(key)
-                    triangleLookup.add(Triangle.of(a, b, i2 shr 1, allPts))
+                    val triangle = Triangle.of(a, b, i2 shr 1, allPts)
+                    if (triangle != null) triangleLookup.add(triangle)
                 }
             }
 

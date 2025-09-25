@@ -51,6 +51,7 @@ abstract class RegularGridBuilder : GraphBuilder, PointSelector {
         transform(cellPositions, scale, offset)
 
         val tmpI = Vector2i()
+        val tmpF = Vector2f()
         val neighbors = IntArrayList(16)
         val corners = FloatArrayList(16)
 
@@ -76,14 +77,15 @@ abstract class RegularGridBuilder : GraphBuilder, PointSelector {
                         val ni = neighbors[i]
                         val nj = neighbors[j]
 
-                        val (cx, cy) = Voronoi.Triangle.circumcenter(
+                        val corner = Voronoi.Triangle.circumcenter(
                             cellPositions[cellIndex * 2],
                             cellPositions[cellIndex * 2 + 1],
                             cellPositions[ni * 2],
                             cellPositions[ni * 2 + 1],
                             cellPositions[nj * 2],
-                            cellPositions[nj * 2 + 1]
-                        )
+                            cellPositions[nj * 2 + 1], tmpF
+                        ) ?: continue
+                        val (cx, cy) = corner
 
                         val dx = cellPositions[cellIndex * 2] - cx
                         val dy = cellPositions[cellIndex * 2 + 1] - cy

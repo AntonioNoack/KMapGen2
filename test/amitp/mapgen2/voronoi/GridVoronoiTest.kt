@@ -9,7 +9,9 @@ import amitp.mapgen2.graphbuilder.voronoi.Voronoi
 import amitp.mapgen2.pointselector.GridPointSelector
 import amitp.mapgen2.structures.CornerList
 import me.anno.maths.MinMax
+import me.anno.utils.Clock
 import me.anno.utils.assertions.assertEquals
+import org.apache.logging.log4j.LogManager
 import org.joml.Vector2f
 import org.joml.Vector3i
 import org.junit.jupiter.api.Test
@@ -23,6 +25,8 @@ import javax.imageio.ImageIO
 class GridVoronoiTest {
 
     companion object {
+        private val LOGGER = LogManager.getLogger(GridVoronoiTest::class)
+
         fun debugRenderGraph(map: GeneratedMap, name: String) {
             val size = map.size
             val imgSize = 1024
@@ -131,25 +135,35 @@ class GridVoronoiTest {
         // generate centers
         // use grid-voronoi and baseline
         // todo compare all corners and edges, which are within the defined bounds
-        val n = 100
+        val n = 10000
         val size = Vector2f(1000f)
-        val points = GridPointSelector(0.9f).select(size, n, 8541)
+        val clock = Clock(LOGGER)
+
+        val points = GridPointSelector(0.9f)
+            .select(size, n, 8541)
+        clock.stop("Generating Points")
 
         val grid = GridVoronoi(points, size)
         val actual = grid.map
-        println("Validating GridVoronoi")
+        clock.stop("GridVoronoi")
+
+        LOGGER.info("Validating GridVoronoi")
         validateGraph(actual)
+        clock.stop("Validating GridVoronoi")
 
         val expected = run {
             val voronoi = Voronoi(points, size)
             VoronoiGraphBuilder.buildGraph(points, voronoi, size)
         }
-        println("Validating VoronoiGraphBuilder")
-        validateGraph(expected)
+        clock.stop("VoronoiGraphBuilder")
 
-        println("Grid Size: ${grid.numCellsX} x ${grid.numCellsY}")
-        println("Actual: ${actual.corners.size} corners + ${actual.edges.size} edges")
-        println("Expected: ${expected.corners.size} corners + ${expected.edges.size} edges")
+        LOGGER.info("Validating VoronoiGraphBuilder")
+        validateGraph(expected)
+        clock.stop("Validating VoronoiGraphBuilder")
+
+        LOGGER.info("Grid Size: ${grid.numCellsX} x ${grid.numCellsY}")
+        LOGGER.info("Actual: ${actual.corners.size} corners + ${actual.edges.size} edges")
+        LOGGER.info("Expected: ${expected.corners.size} corners + ${expected.edges.size} edges")
 
         val actualCorners = getCorners(actual.corners)
 
@@ -173,7 +187,7 @@ class GridVoronoiTest {
                         expected.corners.cells.forEach(corner) { cell -> cells.add(cell) }
                         cells.sort()
 
-                        println("Missing corner #$corner, $cells, (${(point.x * grid.numCellsX)},${point.y * grid.numCellsY})")
+                        LOGGER.info("Missing corner #$corner, $cells, (${(point.x * grid.numCellsX)},${point.y * grid.numCellsY})")
                     }
                 } else {
                     // todo compare edges and cells

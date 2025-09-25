@@ -25,7 +25,10 @@ import kotlin.math.hypot
 import kotlin.math.sqrt
 import kotlin.random.Random
 
-// todo this doesn't work perfectly yet
+/**
+ * Should be faster than VoronoiGraphBuilder, but may introduce shall errors,
+ * and will never be as fast as PerfectGridBuilder
+ * */
 class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
     companion object {
@@ -175,11 +178,12 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
 
         val tmp = Vector2f()
         fun onCorner(ai: Int, bi: Int, ci: Int) {
-            val (px, py) = Voronoi.Triangle.Companion.circumcenter(
+            val corner = Voronoi.Triangle.circumcenter(
                 points[ai * 2], points[ai * 2 + 1],
                 points[bi * 2], points[bi * 2 + 1],
                 points[ci * 2], points[ci * 2 + 1], tmp
-            )
+            ) ?: return
+            val (px, py) = corner
 
             if (px <= 0f || px >= size.x || py <= 0f || py >= size.y) return // out of bounds -> will be handled later
 
@@ -280,6 +284,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
                     // shall be perpendicular
                     val score = abs(dirX * aby - dirY * abx) / max(hypot(dirX, dirY), 1e-9f)
                     if (score > bestScore) {
+                        @Suppress("AssignedValueIsNeverRead") // Intellij is broken
                         bestScore = score
                         bestCorner = corner
                     }

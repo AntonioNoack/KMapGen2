@@ -22,7 +22,7 @@ class CircleGrid(
 ) {
 
     companion object {
-        private const val DISTANCE_ACCURACY = 1.01f
+        private const val DISTANCE_ACCURACY = 1.0001f
         private val LOGGER = LogManager.getLogger(CircleGrid::class)
     }
 
@@ -86,6 +86,9 @@ class CircleGrid(
         // controlCells.add(cellX, cellY)
     }
 
+    val sameCornerEpsilon = 0.001f * (1f / invX + 1f / invY)
+    val radiusSqRatioRange = 0.99f..1f / 0.99f
+
     fun addCircumcircle(
         circleX: Float, circleY: Float, circleRadiusSq: Float,
         cellA: Int, cellB: Int, cellC: Int
@@ -103,9 +106,7 @@ class CircleGrid(
         val watched = setOf(cellA, cellB, cellC) == setOf(2, 8, 36)
         if (watched) println("Found watched cell: $circleX,$circleY, radius ${sqrt(circleRadiusSq)}")
 
-        // todo rounding and 2x2 field would be good enough, too
         // no circle must contain the center of another circle
-        val epsilon = 1e-3f // todo make depend on scale
         for (y in minY0..maxY0) {
             for (x in minX0..maxX0) {
                 val gridIndex = x + y * numCellsX
@@ -118,9 +119,9 @@ class CircleGrid(
 
                     val dx = gridCircleX - circleX
                     val dy = gridCircleY - circleY
-                    if (abs(dx) < epsilon &&
-                        abs(dy) < epsilon &&
-                        gridRadiusSq / circleRadiusSq in 0.999f..1.001f
+                    if (abs(dx) <= sameCornerEpsilon &&
+                        abs(dy) <= sameCornerEpsilon &&
+                        gridRadiusSq / circleRadiusSq in radiusSqRatioRange
                     ) {
                         statsFoundSelf++
                         addToCircumcircle(gridCircle, cellA, cellB, cellC)
@@ -228,25 +229,6 @@ class CircleGrid(
 [07:43:28.873,INFO:VoronoiGraphBuilder] Corners.edges: 24966
     * */
 
-    fun interface CornerCallback {
-        fun call(corner: Int, circumcircle: Int)
-    }
-
-    fun forEachCorner(callback: CornerCallback): Int {
-        var corner = 0
-        for (gridIndex in circumcircleGrid.indices) {
-            var circumcircle = circumcircleGrid[gridIndex]
-            while (circumcircle >= 0) {
-                callback.call(corner, circumcircle)
-                corner++
-
-                // fetch next circumcircle
-                circumcircle = circumcircles.getNext(circumcircle)
-            }
-        }
-        return corner
-    }
-
     fun extractCornersAndEdges(cells: CellList, clock: Clock): CornersAndEdges {
 
         LOGGER.info(
@@ -255,21 +237,21 @@ class CircleGrid(
                     "outOfBounds: $statsOutOfBounds }"
         )
 
-        val numCorners = forEachCorner { _, _ -> }
+        val numCorners = circumcircles.size
         clock.stop("Count corners")
 
         val corners = CornerList(numCorners)
-        forEachCorner { corner, circumcircle ->
+        for (corner in 0 until circumcircles.size) {
             corners.setPoint(
                 corner,
-                circumcircles.getX(circumcircle),
-                circumcircles.getY(circumcircle)
+                circumcircles.getX(corner),
+                circumcircles.getY(corner)
             )
         }
         clock.stop("Corner positions")
 
-        forEachCorner { corner, circumcircle ->
-            circumcircles.cells.forEach(circumcircle) { center ->
+        for (corner in 0 until circumcircles.size) {
+            circumcircles.cells.forEach(corner) { center ->
                 corners.cells.add(corner, center)
                 cells.corners.addUnique(center, corner)
             }
@@ -277,9 +259,9 @@ class CircleGrid(
         clock.stop("Corners.cells")
 
         val uniqueEdges = HashMap<Long, Int>()
-        forEachCorner { corner, circumcircle ->
-            circumcircles.cells.forEach(circumcircle) { ai ->
-                circumcircles.cells.forEach(circumcircle) { bi ->
+        for (corner in 0 until circumcircles.size) {
+            circumcircles.cells.forEach(corner) { ai ->
+                circumcircles.cells.forEach(corner) { bi ->
                     if (ai < bi) {
                         val key = pack64(ai, bi)
                         val edge = uniqueEdges.getOrPut(key) { uniqueEdges.size }
@@ -308,16 +290,33 @@ class CircleGrid(
             edges.setCornerB(edge, -1)
         }
 
-        forEachCorner { corner, circumcircle ->
-            circumcircles.cells.forEach(circumcircle) { ai ->
-                circumcircles.cells.forEach(circumcircle) { bi ->
+        for (corner in 0 until circumcircles.size) {
+            // println("#cc.cells[$corner]: ${circumcircles.cells.getSize(corner)}")
+            circumcircles.cells.forEach(corner) { ai ->
+                circumcircles.cells.forEach(corner) { bi ->
                     if (ai < bi) {
                         val key = pack64(ai, bi)
                         val edge = uniqueEdges[key] ?: throw IllegalStateException("Edge must have been seen before")
+                        // println("e$edge, c$corner by [x$ai,x$bi]")
                         if (edges.getCornerA(edge) == -1) {
                             edges.setCornerA(edge, corner)
-                        } else {
+                        } else if (edges.getCornerB(edge) == -1) {
                             edges.setCornerB(edge, corner)
+                        } else {
+                            // edges are defined by their two neighbor cells
+                            // when corners get too close, multiple may survive although one should not exist
+                            //
+                            val cornerA = edges.getCornerA(edge)
+                            val cornerB = edges.getCornerB(edge)
+                            LOGGER.warn(
+                                "e$edge [x$ai,x$bi] has three corners: c$corner, " +
+                                        "c$cornerA, c$cornerB, " +
+                                        "positions: ${
+                                            listOf(corner, cornerA, cornerB).map {
+                                                "(${corners.getPointX(it)},${corners.getPointY(it)})"
+                                            }
+                                        }"
+                            )
                         }
                     }
                 }
