@@ -43,7 +43,7 @@ class Voronoi(points: FloatArray, bboxSize: Vector2f) {
         triangles = tris
 
         // Compute circumcenters (Voronoi vertices) for every triangle
-        val circumcenters = triangles.map { it.circumcenter() }
+        val cornerPositions = triangles.map { it.circumcenter() }
 
         // Build map from triangle edges to adjacent triangles (triAdj)
         // triAdj: map of undirected edge key to list of triangle indices touching it
@@ -55,20 +55,18 @@ class Voronoi(points: FloatArray, bboxSize: Vector2f) {
         // VEdge with one endpoint and the other null.
         var index = 0
         triAdj.forEach { edgeKey, triIndices ->
-            // edgeKey is "i-j" where i<j are site indices
+            // edgeKey is "i-j" where i<j are cell indices
             val i = unpackHighFrom64(edgeKey)
             val j = unpackLowFrom64(edgeKey)
 
             val t0 = unpackHighFrom64(triIndices)
             val t1 = unpackLowFrom64(triIndices)
 
-            val c0 = circumcenters.getOrNull(t0)
-            val c1 = circumcenters.getOrNull(t1)
+            val c0 = cornerPositions.getOrNull(t0)
+            val c1 = cornerPositions.getOrNull(t1)
 
             // regionL / regionR are the two sites that share the Delaunay edge
-            vEdges.setRegionL(index, i)
-            vEdges.setRegionR(index, j)
-            vEdges.setVertices(index, c0 ?: nan, c1 ?: nan)
+            vEdges.set(index, i, j, c0 ?: nan, c1 ?: nan)
             index++
         }
 

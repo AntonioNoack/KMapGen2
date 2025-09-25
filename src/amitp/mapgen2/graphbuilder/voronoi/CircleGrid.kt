@@ -11,9 +11,8 @@ import me.anno.utils.Clock
 import me.anno.utils.algorithms.ForLoop.forLoopSafely
 import me.anno.utils.structures.arrays.FloatArrayList
 import me.anno.utils.structures.arrays.FloatArrayListUtils.add
-import me.anno.utils.structures.arrays.IntArrayList
+import org.apache.logging.log4j.LogManager
 import org.joml.AABBf
-import kotlin.collections.iterator
 import kotlin.math.*
 
 class CircleGrid(
@@ -24,11 +23,7 @@ class CircleGrid(
 
     companion object {
         private const val DISTANCE_ACCURACY = 1.01f
-    }
-
-    class Circumcircle(val x: Float, val y: Float, val rSq: Float) {
-        val cells = IntArrayList(4)
-        var next: Circumcircle? = null
+        private val LOGGER = LogManager.getLogger(CircleGrid::class)
     }
 
     val minX = bounds.minX
@@ -37,7 +32,8 @@ class CircleGrid(
     val invY = numCellsY / max(bounds.deltaY, 1e-38f)
 
     val gridSize = numCellsX * numCellsY
-    val circumcircleGrid = arrayOfNulls<Circumcircle>(gridSize)
+    val circumcircleGrid = IntArray(gridSize).apply { fill(-1) }
+    val circumcircles = CircumcircleList()
 
     // x,y
     val cellGrid = FloatArray(gridSize * 2)
@@ -90,10 +86,6 @@ class CircleGrid(
         // controlCells.add(cellX, cellY)
     }
 
-    fun IntArrayList.addUnique(value: Int) {
-        if (value !in this) add(value)
-    }
-
     fun addCircumcircle(
         circleX: Float, circleY: Float, circleRadiusSq: Float,
         cellA: Int, cellB: Int, cellC: Int
@@ -118,12 +110,11 @@ class CircleGrid(
             for (x in minX0..maxX0) {
                 val gridIndex = x + y * numCellsX
                 var gridCircle = circumcircleGrid[gridIndex]
-                while (gridCircle != null) {
+                while (gridCircle >= 0) {
 
-                    val gridCircleX = gridCircle.x
-                    val gridCircleY = gridCircle.y
-                    val gridRadiusSq = gridCircle.rSq
-                    if (gridRadiusSq <= 0f) continue
+                    val gridCircleX = circumcircles.getX(gridCircle)
+                    val gridCircleY = circumcircles.getY(gridCircle)
+                    val gridRadiusSq = circumcircles.getRadiusSq(gridCircle)
 
                     val dx = gridCircleX - circleX
                     val dy = gridCircleY - circleY
@@ -137,7 +128,7 @@ class CircleGrid(
                         return
                     }
 
-                    gridCircle = gridCircle.next
+                    gridCircle = circumcircles.getNext(gridCircle)
                 }
             }
         }
@@ -201,22 +192,20 @@ class CircleGrid(
 
         statsNormal++
 
-        val newCircle = Circumcircle(circleX, circleY, circleRadiusSq)
-        addToCircumcircle(newCircle, cellA, cellB, cellC)
-
         val gridIndex = gx + gy * numCellsX
-        newCircle.next = circumcircleGrid[gridIndex]
+        val newCircle = circumcircles.add(
+            circleX, circleY, circleRadiusSq,
+            circumcircleGrid[gridIndex]
+        )
+        addToCircumcircle(newCircle, cellA, cellB, cellC)
         circumcircleGrid[gridIndex] = newCircle
     }
 
-    private fun addToCircumcircle(
-        circle: Circumcircle,
-        cellA: Int, cellB: Int, cellC: Int
-    ) {
-        val cells = circle.cells
-        cells.addUnique(cellA)
-        cells.addUnique(cellB)
-        cells.addUnique(cellC)
+    private fun addToCircumcircle(circleId: Int, cellA: Int, cellB: Int, cellC: Int) {
+        val cells = circumcircles.cells
+        cells.addUnique(circleId, cellA)
+        cells.addUnique(circleId, cellB)
+        cells.addUnique(circleId, cellC)
     }
 
     /*
@@ -240,19 +229,19 @@ class CircleGrid(
     * */
 
     fun interface CornerCallback {
-        fun call(corner: Int, circumcircle: Circumcircle)
+        fun call(corner: Int, circumcircle: Int)
     }
 
     fun forEachCorner(callback: CornerCallback): Int {
         var corner = 0
         for (gridIndex in circumcircleGrid.indices) {
             var circumcircle = circumcircleGrid[gridIndex]
-            while (circumcircle != null) {
+            while (circumcircle >= 0) {
                 callback.call(corner, circumcircle)
                 corner++
 
                 // fetch next circumcircle
-                circumcircle = circumcircle.next
+                circumcircle = circumcircles.getNext(circumcircle)
             }
         }
         return corner
@@ -260,7 +249,7 @@ class CircleGrid(
 
     fun extractCornersAndEdges(cells: CellList, clock: Clock): CornersAndEdges {
 
-        println(
+        LOGGER.info(
             "Stats: { normal: $statsNormal, found: $statsFoundSelf, " +
                     "covered: $statsCovered, " +
                     "outOfBounds: $statsOutOfBounds }"
@@ -271,14 +260,16 @@ class CircleGrid(
 
         val corners = CornerList(numCorners)
         forEachCorner { corner, circumcircle ->
-            corners.setPoint(corner, circumcircle.x, circumcircle.y)
+            corners.setPoint(
+                corner,
+                circumcircles.getX(circumcircle),
+                circumcircles.getY(circumcircle)
+            )
         }
         clock.stop("Corner positions")
 
         forEachCorner { corner, circumcircle ->
-            val cellsAtCorner = circumcircle.cells
-            for (i in cellsAtCorner.indices) {
-                val center = cellsAtCorner[i]
+            circumcircles.cells.forEach(circumcircle) { center ->
                 corners.cells.add(corner, center)
                 cells.corners.addUnique(center, corner)
             }
@@ -287,18 +278,17 @@ class CircleGrid(
 
         val uniqueEdges = HashMap<Long, Int>()
         forEachCorner { corner, circumcircle ->
-            val cellsAtCorner = circumcircle.cells
-            for (ci in 1 until cellsAtCorner.size) {
-                for (cj in 0 until ci) {
-                    val ai = cellsAtCorner[ci]
-                    val bi = cellsAtCorner[cj]
-                    val key = pack64(min(ai, bi), max(ai, bi))
-                    val edge = uniqueEdges.getOrPut(key) { uniqueEdges.size }
-                    corners.edges.add(corner, edge)
-                    cells.neighbors.addUnique(ai, bi)
-                    cells.neighbors.addUnique(bi, ai)
-                    cells.edges.addUnique(ai, edge)
-                    cells.edges.addUnique(bi, edge)
+            circumcircles.cells.forEach(circumcircle) { ai ->
+                circumcircles.cells.forEach(circumcircle) { bi ->
+                    if (ai < bi) {
+                        val key = pack64(ai, bi)
+                        val edge = uniqueEdges.getOrPut(key) { uniqueEdges.size }
+                        corners.edges.add(corner, edge)
+                        cells.neighbors.addUnique(ai, bi)
+                        cells.neighbors.addUnique(bi, ai)
+                        cells.edges.addUnique(ai, edge)
+                        cells.edges.addUnique(bi, edge)
+                    }
                 }
             }
         }
@@ -319,17 +309,16 @@ class CircleGrid(
         }
 
         forEachCorner { corner, circumcircle ->
-            val cellsAtCorner = circumcircle.cells
-            for (ci in 1 until cellsAtCorner.size) {
-                for (cj in 0 until ci) {
-                    val ai = cellsAtCorner[ci]
-                    val bi = cellsAtCorner[cj]
-                    val key = pack64(min(ai, bi), max(ai, bi))
-                    val edge = uniqueEdges[key] ?: throw IllegalStateException("Edge must have been seen before")
-                    if (edges.getCornerA(edge) == -1) {
-                        edges.setCornerA(edge, corner)
-                    } else {
-                        edges.setCornerB(edge, corner)
+            circumcircles.cells.forEach(circumcircle) { ai ->
+                circumcircles.cells.forEach(circumcircle) { bi ->
+                    if (ai < bi) {
+                        val key = pack64(ai, bi)
+                        val edge = uniqueEdges[key] ?: throw IllegalStateException("Edge must have been seen before")
+                        if (edges.getCornerA(edge) == -1) {
+                            edges.setCornerA(edge, corner)
+                        } else {
+                            edges.setCornerB(edge, corner)
+                        }
                     }
                 }
             }

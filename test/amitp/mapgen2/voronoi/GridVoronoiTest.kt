@@ -1,6 +1,7 @@
 package amitp.mapgen2.voronoi
 
 import amitp.mapgen2.GeneratedMap
+import amitp.mapgen2.GraphValidator.validateGraph
 import amitp.mapgen2.desktop
 import amitp.mapgen2.graphbuilder.VoronoiGraphBuilder
 import amitp.mapgen2.graphbuilder.voronoi.GridVoronoi
@@ -136,10 +137,15 @@ class GridVoronoiTest {
 
         val grid = GridVoronoi(points, size)
         val actual = grid.map
+        println("Validating GridVoronoi")
+        validateGraph(actual)
+
         val expected = run {
             val voronoi = Voronoi(points, size)
-            VoronoiGraphBuilder.Companion.buildGraph(points, voronoi, size)
+            VoronoiGraphBuilder.buildGraph(points, voronoi, size)
         }
+        println("Validating VoronoiGraphBuilder")
+        validateGraph(expected)
 
         println("Grid Size: ${grid.numCellsX} x ${grid.numCellsY}")
         println("Actual: ${actual.corners.size} corners + ${actual.edges.size} edges")
@@ -178,5 +184,6 @@ class GridVoronoiTest {
         assertEquals(0, failed, "Failures!")
 
     }
+
 
 }

@@ -7,6 +7,7 @@ import amitp.mapgen2.structures.EdgeList
 import me.anno.maths.Maths.sq
 import me.anno.maths.MinMax.max
 import me.anno.maths.MinMax.min
+import me.anno.maths.paths.PathFinding
 import me.anno.utils.Clock
 import me.anno.utils.OS.home
 import me.anno.utils.algorithms.ForLoop.forLoopSafely
@@ -104,7 +105,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
         val invX = numCellsX / max(bounds.deltaX, 1e-38f)
         val invY = numCellsY / max(bounds.deltaY, 1e-38f)
 
-        println("min,inv: $minX,$minY,$invX,$invY")
+        LOGGER.info("Min,Inv: $minX,$minY, $invX,$invY")
         val maxMinDist = 1f / (invX * invX) + 1f / (invY * invY)
 
         forLoopSafely(points.size, 2) { pi ->
@@ -243,31 +244,15 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
         val posY: Float,
     )
 
-    private fun findCornersOnEdges(cells: CellList, corners: CornerList, edges: EdgeList) {
-
+    private fun findEdgesToBorder(cells: CellList, corners: CornerList): List<ToBorder> {
         val edgesToBorder = ArrayList<ToBorder>()
 
         // iterate over border (without max, this would be an expensive O(n²) search, where n ~ numCellsX)
         var cellA = -1
-        fun onBorderPixel(xi: Int, yi: Int) {
-            val cellIndex = xi + yi * numCellsX
-            val cellB = closest[cellIndex]
-            if (cellB == -1) return // or should we keep it??? for now assume a filled border
-            if (cellB == cellA) return // already seen
 
-            // we found a new cell on the border
-            // println("next border cell: $cellB")
-
-            if (cellA == -1) {
-                cellA = cellB
-                return // wait for the next round
-            }
-
+        fun connect(cellA: Int, cellB: Int): Boolean {
             // find the common corner between cell ai and bi:
             //  there should only be one
-
-            // todo we need to find the shortest path from cellA to cellB via corners
-            //  all of the included corners/cells need to be connected to the edge
 
             val aix = cells.getPointX(cellA)
             val aiy = cells.getPointY(cellA)
@@ -338,10 +323,56 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
                 val hitX = if (lenX < lenY) if (dirX < 0f) 0f else size.x else (cx + dirX * lenY)
                 val hitY = if (lenX < lenY) (cy + dirY * lenX) else if (dirY < 0f) 0f else size.y
 
+                // println("edgesToBorder += ($cellA,$cellB)")
                 edgesToBorder.add(ToBorder(cellA, cellB, bestCorner, hitX, hitY))
 
-            } else {
-                // todo else we MUST search for a path, and then process vertices the path like before!!!
+                return true
+            } else return false
+        }
+
+        fun onBorderPixel(xi: Int, yi: Int) {
+            val cellIndex = xi + yi * numCellsX
+            val cellB = closest[cellIndex]
+            if (cellB == -1) return // or should we keep it??? for now assume a filled border
+            if (cellB == cellA) return // already seen
+
+            // we found a new cell on the border
+            // println("next border cell: $cellB")
+
+            if (cellA == -1) {
+                @Suppress("AssignedValueIsNeverRead") // Intellij is stupid
+                cellA = cellB
+                return // wait for the next round
+            }
+
+            if (!connect(cellA, cellB)) {
+
+                // we must use path-finding to find the correct path
+
+                val neighbors = ArrayList<Int>()
+                val path = PathFinding<Int>().aStar(
+                    cellA, cellB, { cellA, cellB ->
+                        val dx = cells.getPointX(cellB) - cells.getPointX(cellA)
+                        val dy = cells.getPointY(cellB) - cells.getPointY(cellA)
+                        (dx * dx + dy * dy).toDouble()
+                    }, { cell ->
+                        neighbors.clear()
+                        if (cell >= 0) {
+                            cells.neighbors.forEach(cell) { neighborCorner ->
+                                neighbors.add(neighborCorner)
+                            }
+                        }
+                        neighbors
+                    }, Double.POSITIVE_INFINITY,
+                    includeStart = true, includeEnd = true
+                )
+
+                if (path != null) {
+                    LOGGER.info("Found cell path: $path")
+                    for (i in 1 until path.size) {
+                        connect(path[i - 1], path[i])
+                    }
+                } else LOGGER.warn("Could not find path from cell $cellA to cell $cellB")
             }
 
             @Suppress("AssignedValueIsNeverRead") // Intellij is lying
@@ -353,9 +384,15 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
         for (x in numCellsX - 1 downTo 0) onBorderPixel(x, numCellsY - 1)
         for (y in numCellsY - 1 downTo 0) onBorderPixel(0, y)
 
+        return edgesToBorder
+    }
+
+    private fun findCornersOnEdges(cells: CellList, corners: CornerList, edges: EdgeList) {
+
+        val edgesToBorder = findEdgesToBorder(cells, corners)
         if (edgesToBorder.isEmpty()) return
 
-        println("Adding ${edgesToBorder.size} edges/corners to the border (${corners.size} corners + ${edges.size} edges)")
+        LOGGER.info("Adding ${edgesToBorder.size} edges/corners to the border (${corners.size} corners + ${edges.size} edges)")
 
         var numExtraCorners = edgesToBorder.size
         var numExtraEdges = edgesToBorder.size
@@ -384,7 +421,7 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
         var corner = corners.size
         val firstNewCorner = corner
 
-        println("Extra corners: $numExtraCorners, extra edges: $numExtraEdges, edges to border: ${edgesToBorder.size}")
+        LOGGER.info("Extra corners: $numExtraCorners, extra edges: $numExtraEdges, edges to border: ${edgesToBorder.size}")
 
         corners.resizeTo(corners.size + numExtraCorners)
         edges.resize(edges.size + numExtraEdges)
@@ -402,10 +439,12 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
             edges.setCellA(edge, cellA)
             edges.setCellB(edge, cellB)
 
-            cells.edges.add(cellA, edge)
+            cells.edges.addUnique(cellA, edge)
+            corners.edges.addUnique(cornerA, edge)
+            corners.edges.addUnique(cornerB, edge)
 
             if (cellB >= 0) {
-                cells.edges.add(cellB, edge)
+                cells.edges.addUnique(cellB, edge)
                 cells.neighbors.addUnique(cellA, cellB)
                 cells.neighbors.addUnique(cellB, cellA)
             }
@@ -417,16 +456,23 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
             corners.setPoint(corner, posX, posY)
             corners.setBorder(corner, true)
 
-            corners.edges.add(corner, edgeA)
+            corners.edges.addUnique(corner, edgeA)
             corners.cells.add(corner, cellA)
             cells.corners.add(cellA, corner)
 
+            // cells.edges.addUnique(cellA, edgeA)
+
             if (edgeB >= 0) {
-                corners.edges.add(corner, edgeB)
+                corners.edges.addUnique(corner, edgeB)
+                // cells.edges.addUnique(cellA, edgeB)
             }
             if (cellB >= 0) {
                 corners.cells.add(corner, cellB)
                 cells.corners.add(cellB, corner)
+                /*cells.edges.addUnique(cellB, edgeA)
+                if (edgeB >= 0{
+                    cells.edges.addUnique(cellB, edgeB)
+                }*/
             }
 
             corner++
@@ -450,8 +496,8 @@ class GridVoronoi(points: FloatArray, val size: Vector2f) {
             val corner1 = edgesToBorder[i]
 
             if (corner0.cellB == corner1.cellA) {
-                // connect these two corners
 
+                // connect these two corners
                 val corner0i = firstNewCorner + last
                 val corner1i = firstNewCorner + i
 

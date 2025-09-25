@@ -48,76 +48,78 @@ class VoronoiGraphBuilder(
             }
 
             // Build edges
-            val edges0 = voronoi.edges
-            val edges = EdgeList(edges0.size)
+            val srcEdges = voronoi.edges
+            val edges = EdgeList(srcEdges.size)
 
-            for (edgeIndex in 0 until edges0.size) {
-                ensureCorner(edges0.getVertex(edgeIndex, 0), edges0.getVertex(edgeIndex, 1))
-                ensureCorner(edges0.getVertex(edgeIndex, 2), edges0.getVertex(edgeIndex, 3))
+            for (edgeIndex in 0 until srcEdges.size) {
+                ensureCorner(srcEdges.getPosition(edgeIndex, 0), srcEdges.getPosition(edgeIndex, 1))
+                ensureCorner(srcEdges.getPosition(edgeIndex, 2), srcEdges.getPosition(edgeIndex, 3))
             }
 
-            val cornerList = CornerList(cornerMap.size)
+            val corners = CornerList(cornerMap.size)
             cornerMap.forEach { pos, i ->
                 val px = Float.fromBits(unpackHighFrom64(pos))
                 val py = Float.fromBits(unpackLowFrom64(pos))
-                cornerList.setPoint(i, px, py)
-                cornerList.setBorder(i, px <= 0f || px >= size.x || py <= 0f || py >= size.y)
+                corners.setPoint(i, px, py)
+                corners.setBorder(i, px <= 0f || px >= size.x || py <= 0f || py >= size.y)
             }
 
-            for (edgeIndex in 0 until edges0.size) {
-                val d0 = edges0.getRegionL(edgeIndex)
-                val d1 = edges0.getRegionR(edgeIndex)
+            for (edge in 0 until srcEdges.size) {
+                val cellA = srcEdges.getCellA(edge)
+                val cellB = srcEdges.getCellB(edge)
 
-                val v0 = getCorner(edges0.getVertex(edgeIndex, 0), edges0.getVertex(edgeIndex, 1))
-                val v1 = getCorner(edges0.getVertex(edgeIndex, 2), edges0.getVertex(edgeIndex, 3))
+                val cornerA = getCorner(srcEdges.getPosition(edge, 0), srcEdges.getPosition(edge, 1))
+                val cornerB = getCorner(srcEdges.getPosition(edge, 2), srcEdges.getPosition(edge, 3))
 
-                edges.setCellA(edgeIndex, d0)
-                edges.setCellB(edgeIndex, d1)
-                edges.setCornerA(edgeIndex, v0)
-                edges.setCornerB(edgeIndex, v1)
+                // println("e$edge: x$cellA,x$cellB, c$cornerA,c$cornerB")
+
+                edges.setCellA(edge, cellA)
+                edges.setCellB(edge, cellB)
+                edges.setCornerA(edge, cornerA)
+                edges.setCornerB(edge, cornerB)
 
                 // Cells point to edges
-                if (d0 >= 0) cells.edges.add(d0, edgeIndex)
-                if (d1 >= 0) cells.edges.add(d1, edgeIndex)
+                if (cellA >= 0) cells.edges.add(cellA, edge)
+                if (cellB >= 0) cells.edges.add(cellB, edge)
 
                 // Corners point to edges
-                if (v0 >= 0) cornerList.edges.add(v0, edgeIndex)
-                if (v1 >= 0) cornerList.edges.add(v1, edgeIndex)
+                if (cornerA >= 0) corners.edges.add(cornerA, edge)
+                if (cornerB >= 0) corners.edges.add(cornerB, edge)
 
                 // Cells point to cells
-                if (d0 >= 0 && d1 >= 0) {
-                    cells.neighbors.addUnique(d0, d1)
-                    cells.neighbors.addUnique(d1, d0)
+                if (cellA >= 0 && cellB >= 0) {
+                    cells.neighbors.addUnique(cellA, cellB)
+                    cells.neighbors.addUnique(cellB, cellA)
                 }
 
                 // Corners point to corners
-                if (v0 >= 0 && v1 >= 0) {
-                    cornerList.neighbors.addUnique(v0, v1)
-                    cornerList.neighbors.addUnique(v1, v0)
+                if (cornerA >= 0 && cornerB >= 0) {
+                    corners.neighbors.addUnique(cornerA, cornerB)
+                    corners.neighbors.addUnique(cornerB, cornerA)
                 }
 
                 // Cells point to corners
-                if (d0 >= 0) {
-                    if (v0 >= 0) cells.corners.addUnique(d0, v0)
-                    if (v1 >= 0) cells.corners.addUnique(d0, v1)
+                if (cellA >= 0) {
+                    if (cornerA >= 0) cells.corners.addUnique(cellA, cornerA)
+                    if (cornerB >= 0) cells.corners.addUnique(cellA, cornerB)
                 }
-                if (d1 >= 0) {
-                    if (v0 >= 0) cells.corners.addUnique(d1, v0)
-                    if (v1 >= 0) cells.corners.addUnique(d1, v1)
+                if (cellB >= 0) {
+                    if (cornerA >= 0) cells.corners.addUnique(cellB, cornerA)
+                    if (cornerB >= 0) cells.corners.addUnique(cellB, cornerB)
                 }
 
                 // Corners point to cells
-                if (v0 >= 0) {
-                    cornerList.cells.addUnique(v0, d0)
-                    cornerList.cells.addUnique(v0, d1)
+                if (cornerA >= 0) {
+                    corners.cells.addUnique(cornerA, cellA)
+                    corners.cells.addUnique(cornerA, cellB)
                 }
-                if (v1 >= 0) {
-                    cornerList.cells.addUnique(v1, d0)
-                    cornerList.cells.addUnique(v1, d1)
+                if (cornerB >= 0) {
+                    corners.cells.addUnique(cornerB, cellA)
+                    corners.cells.addUnique(cornerB, cellB)
                 }
             }
 
-            return GeneratedMap(cells, cornerList, edges, size)
+            return GeneratedMap(cells, corners, edges, size)
         }
 
     }

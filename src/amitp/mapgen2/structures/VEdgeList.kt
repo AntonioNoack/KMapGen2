@@ -8,31 +8,25 @@ import org.joml.Vector2f
 class VEdgeList(val size: Int) {
 
     // size indices
-    private val regions = IntArray(size * 2)
-    private val vertices = FloatArray(size * 4)
+    private val cells = IntArray(size * 2)
+    private val cornerPositions = FloatArray(size * 4)
 
-    fun getRegionL(index: Int): Int = regions[index shl 1]
-    fun getRegionR(index: Int): Int = regions[(index shl 1) + 1]
+    fun getCellA(index: Int): Int = cells[index shl 1]
+    fun getCellB(index: Int): Int = cells[(index shl 1) + 1]
 
-    fun setRegionL(index: Int, value: Int) {
-        regions[index shl 1] = value
-    }
-
-    fun setRegionR(index: Int, value: Int) {
-        regions[(index shl 1) + 1] = value
+    fun set(index: Int, cellA: Int, cellB: Int, valueA: Vector2f, valueB: Vector2f) {
+        cells[index shl 1] = cellA
+        cells[(index shl 1) + 1] = cellB
+        val k = index shl 2
+        cornerPositions[k] = valueA.x
+        cornerPositions[k + 1] = valueA.y
+        cornerPositions[k + 2] = valueB.x
+        cornerPositions[k + 3] = valueB.y
     }
 
     /**
      * circumcenter of triangle on one side OR
      * circumcenter of triangle on other side
      * */
-    fun getVertex(index: Int, comp: Int): Float = vertices[(index shl 2) + comp]
-
-    fun setVertices(index: Int, valueA: Vector2f, valueB: Vector2f) {
-        val k = index shl 2
-        vertices[k] = valueA.x
-        vertices[k + 1] = valueA.y
-        vertices[k + 2] = valueB.x
-        vertices[k + 3] = valueB.y
-    }
+    fun getPosition(index: Int, comp: Int): Float = cornerPositions[(index shl 2) + comp]
 }
